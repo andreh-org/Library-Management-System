@@ -53,7 +53,7 @@ class ReminderServiceTest {
 
         verify(mockEmailService).sendEmail(emailCaptor.capture(), subjectCaptor.capture(), bodyCaptor.capture());
 
-        assertEquals("s12219071@stu.najah.edu", emailCaptor.getValue());
+        assertEquals("andrehkhouri333@gmail.com", emailCaptor.getValue());
         assertEquals("Overdue Book Reminder", subjectCaptor.getValue());
         assertTrue(bodyCaptor.getValue().contains("Dear " + userName));
         assertTrue(bodyCaptor.getValue().contains("You have " + overdueCount + " overdue book(s)"));
