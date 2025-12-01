@@ -19,13 +19,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class FineServiceTest {
     private FineService fineService;
     private UserRepository userRepository;
-    private BookRepository bookRepository; // Add this field
+    private BookRepository bookRepository;
+    private LoanService loanService;
 
     @BeforeEach
     void setUp() {
         userRepository = new UserRepository();
-        bookRepository = new BookRepository(); // Initialize it
-        fineService = new FineService(userRepository);
+        bookRepository = new BookRepository();
+        loanService = new LoanService(new FineService(userRepository), userRepository, bookRepository);
+        fineService = new FineService(userRepository, loanService);
     }
 
     @Test
@@ -140,8 +142,6 @@ class FineServiceTest {
     @Test
     void testCompleteFineAndReturnFlow() {
         // Step 0: Verify initial state - U002 has an overdue book and unpaid fine
-        LoanService loanService = new LoanService(fineService, userRepository, bookRepository);
-
         // Verify U002 has unpaid fines
         List<Fine> unpaidFines = fineService.getUserUnpaidFines("U002");
         assertFalse(unpaidFines.isEmpty());
@@ -158,44 +158,40 @@ class FineServiceTest {
         User userInitial = userRepository.findUserById("U002");
         assertFalse(userInitial.canBorrow());
 
-        // Step 1: Try to return the overdue book - should FAIL because of unpaid fine
-        boolean returnAttempt1 = loanService.returnBook("L0001", LocalDate.now());
-        assertFalse(returnAttempt1);
+        // Step 1: Try to pay the fine - should FAIL because of overdue book
+        boolean paymentAttempt1 = fineService.payFine("F0001", 25.0);
+        assertFalse(paymentAttempt1);
 
-        // Step 2: Try to borrow a new book - should FAIL because of unpaid fine AND overdue book
+        // Step 2: Try to borrow a new book - should FAIL because of overdue book AND unpaid fine
         Loan borrowAttempt1 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
         assertNull(borrowAttempt1);
 
-        // Step 3: Pay the fine
-        boolean paymentSuccess = fineService.payFine("F0001", 25.0);
-        assertTrue(paymentSuccess);
-
-        // Verify fine is paid
-        Fine paidFine = fineService.getFineRepository().findFineById("F0001");
-        assertTrue(paidFine.isPaid());
-        assertEquals(0.0, paidFine.getRemainingBalance(), 0.001);
-
-        // Step 4: Try to borrow a new book again - should STILL FAIL because overdue book not returned
-        Loan borrowAttempt2 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
-        assertNull(borrowAttempt2);
-
-        // Step 5: Now return the overdue book - should SUCCESS because fine is paid
-        boolean returnAttempt2 = loanService.returnBook("L0001", LocalDate.now());
-        assertTrue(returnAttempt2);
+        // Step 3: Return the overdue book - should SUCCESS (no fine check for returns)
+        boolean returnAttempt1 = loanService.returnBook("L0001", LocalDate.now());
+        assertTrue(returnAttempt1);
 
         // Verify loan is returned
         Loan returnedLoan = loanService.getLoanRepository().findLoanById("L0001");
         assertNotNull(returnedLoan.getReturnDate());
         assertEquals(LocalDate.now(), returnedLoan.getReturnDate());
 
-        // Step 6: Now try to borrow a new book - should SUCCESS because fine is paid and overdue book is returned
-        Loan borrowAttempt3 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
-        assertNotNull(borrowAttempt3);
+        // Step 4: Now pay the fine - should SUCCESS because overdue book is returned
+        boolean paymentAttempt2 = fineService.payFine("F0001", 25.0);
+        assertTrue(paymentAttempt2);
+
+        // Verify fine is paid
+        Fine paidFine = fineService.getFineRepository().findFineById("F0001");
+        assertTrue(paidFine.isPaid());
+        assertEquals(0.0, paidFine.getRemainingBalance(), 0.001);
+
+        // Step 5: Now try to borrow a new book - should SUCCESS because fine is paid and overdue book is returned
+        Loan borrowAttempt2 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
+        assertNotNull(borrowAttempt2);
 
         // Verify the new loan details
-        assertEquals("U002", borrowAttempt3.getUserId());
-        assertEquals("978-0451524935", borrowAttempt3.getBookIsbn());
-        assertEquals(LocalDate.now().plusDays(28), borrowAttempt3.getDueDate());
+        assertEquals("U002", borrowAttempt2.getUserId());
+        assertEquals("978-0451524935", borrowAttempt2.getBookIsbn());
+        assertEquals(LocalDate.now().plusDays(28), borrowAttempt2.getDueDate());
 
         // Final verification: User should now be able to borrow
         User userFinal = userRepository.findUserById("U002");

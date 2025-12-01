@@ -48,21 +48,22 @@ public class LoanService {
             return null;
         }
 
-        // Check if user can borrow (no unpaid fines) - FIXED: Use the shared FineService
-        double unpaidFines = fineService.getTotalUnpaidAmount(userId);
-        if (unpaidFines > 0) {
-            System.out.println("Error: User cannot borrow books. Unpaid fines: $" + unpaidFines);
-            return null;
-        }
-
         // NEW CHECK: Check if user has any overdue books that need to be returned
         List<Loan> userActiveLoans = getUserActiveLoans(userId);
         boolean hasOverdueBooks = userActiveLoans.stream()
                 .anyMatch(Loan::isOverdue);
 
         if (hasOverdueBooks) {
-            System.out.println("Error: User cannot borrow new books. There are overdue books that need to be returned first.");
+            System.out.println("❌ Error: User cannot borrow new books. There are overdue books that need to be returned first.");
             System.out.println("Please return all overdue books before borrowing new ones.");
+            return null;
+        }
+
+        // Check if user can borrow (no unpaid fines) - FIXED: Use the shared FineService
+        double unpaidFines = fineService.getTotalUnpaidAmount(userId);
+        if (unpaidFines > 0) {
+            System.out.println("❌ Error: User cannot borrow books. Unpaid fines: $" + unpaidFines);
+            System.out.println("Please pay all fines before borrowing new books.");
             return null;
         }
 
@@ -99,7 +100,7 @@ public class LoanService {
             // Book availability is already updated in LoanRepository.createLoan()
             user.addLoan(loan.getLoanId());
             userRepository.updateUser(user);
-            System.out.println("Book borrowed successfully. Due date: " + loan.getDueDate());
+            System.out.println("✅ Book borrowed successfully. Due date: " + loan.getDueDate());
         }
 
         return loan;
@@ -108,23 +109,17 @@ public class LoanService {
     public boolean returnBook(String loanId, LocalDate returnDate) {
         Loan loan = loanRepository.findLoanById(loanId);
         if (loan == null) {
-            System.out.println("Error: Loan not found.");
+            System.out.println("❌ Error: Loan not found.");
             return false;
         }
 
         if (loan.getReturnDate() != null) {
-            System.out.println("Error: Book already returned.");
+            System.out.println("❌ Error: Book already returned.");
             return false;
         }
 
-        // FIX: Check if user has unpaid fines before allowing return
-        String userId = loan.getUserId();
-        double unpaidFines = fineService.getTotalUnpaidAmount(userId);
-        if (unpaidFines > 0) {
-            System.out.println("❌ Error: User has unpaid fines of $" + unpaidFines);
-            System.out.println("Please pay all fines before returning books.");
-            return false;
-        }
+        // REMOVED: Fine check before returning book
+        // Users can now return books even with unpaid fines
 
         boolean returnSuccess = loanRepository.returnBook(loanId, returnDate);
         if (returnSuccess) {
@@ -138,6 +133,15 @@ public class LoanService {
             }
 
             System.out.println("✅ Book returned successfully!");
+
+            // Check if user still has overdue books after this return
+            List<Loan> remainingLoans = getUserActiveLoans(loan.getUserId());
+            boolean stillHasOverdue = remainingLoans.stream()
+                    .anyMatch(Loan::isOverdue);
+
+            if (!stillHasOverdue) {
+                System.out.println("🎉 All overdue books returned! User can now pay fines and borrow new books.");
+            }
         }
 
         return returnSuccess;
@@ -160,6 +164,16 @@ public class LoanService {
         }
 
         return userLoans;
+    }
+
+    /**
+     * Checks if user has any overdue books
+     * @param userId the user ID
+     * @return true if user has overdue books, false otherwise
+     */
+    public boolean hasOverdueBooks(String userId) {
+        List<Loan> activeLoans = getUserActiveLoans(userId);
+        return activeLoans.stream().anyMatch(Loan::isOverdue);
     }
 
     public List<Loan> getOverdueLoans(LocalDate currentDate) {

@@ -38,6 +38,9 @@ public class UserRepository {
         User userWithFine1 = users.get(1); // Emma Johnson - U002
         userWithFine1.setCanBorrow(false);
 
+        User userWithFine3 = users.get(1); // Emma Johnson - U002
+        userWithFine3.setCanBorrow(false);
+
         User userWithFine2 = users.get(3); // Sarah Davis - U004
         userWithFine2.setCanBorrow(false);
     }

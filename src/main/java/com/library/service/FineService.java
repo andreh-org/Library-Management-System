@@ -14,15 +14,34 @@ import java.util.List;
 public class FineService {
     private FineRepository fineRepository;
     private UserRepository userRepository;
+    private LoanService loanService;
 
-    public FineService(UserRepository userRepository) {
+    // Primary constructor with all dependencies
+    public FineService(UserRepository userRepository, LoanService loanService) {
         this.fineRepository = new FineRepository();
-        this.userRepository = userRepository; // Use the shared UserRepository instance
+        this.userRepository = userRepository;
+        this.loanService = loanService;
     }
 
+    // Constructor without LoanService - for backward compatibility
+    public FineService(UserRepository userRepository) {
+        this.fineRepository = new FineRepository();
+        this.userRepository = userRepository;
+        this.loanService = null; // Will be set later via setter
+    }
 
+    // Default constructor
     public FineService() {
-        this(new UserRepository());
+        this.fineRepository = new FineRepository();
+        this.userRepository = new UserRepository();
+        this.loanService = null; // Will be set later via setter
+    }
+
+    /**
+     * Set the LoanService dependency (to break circular dependency)
+     */
+    public void setLoanService(LoanService loanService) {
+        this.loanService = loanService;
     }
 
     public Fine applyFine(String userId, double amount, String reason) {
@@ -46,16 +65,33 @@ public class FineService {
 
     public boolean payFine(String fineId, double paymentAmount) {
         if (paymentAmount <= 0) {
-            System.out.println("Error: Payment amount must be positive.");
+            System.out.println("❌ Error: Payment amount must be positive.");
             return false;
+        }
+
+        // Check if loanService is available
+        if (loanService == null) {
+            System.out.println("❌ Error: Loan service not available.");
+            return false;
+        }
+
+        // NEW CHECK: User cannot pay fines if they have overdue books
+        Fine fine = fineRepository.findFineById(fineId);
+        if (fine != null) {
+            String userId = fine.getUserId();
+            boolean hasOverdueBooks = loanService.hasOverdueBooks(userId);
+
+            if (hasOverdueBooks) {
+                System.out.println("❌ Error: Cannot pay fines. User has overdue books that must be returned first.");
+                System.out.println("Please return all overdue books before paying fines.");
+                return false;
+            }
         }
 
         Fine.PaymentResult paymentResult = fineRepository.makePayment(fineId, paymentAmount);
         if (paymentResult.isSuccess()) {
-            Fine fine = fineRepository.findFineById(fineId);
-
             // Show payment result message
-            System.out.println("Payment of $" + paymentAmount + " applied to fine " + fineId);
+            System.out.println("✅ Payment of $" + paymentAmount + " applied to fine " + fineId);
             System.out.println(paymentResult.getMessage());
 
             // If there was a refund, show it clearly
@@ -126,9 +162,18 @@ public class FineService {
             return;
         }
 
+        // Check if user has overdue books (only if loanService is available)
+        boolean hasOverdueBooks = false;
+        if (loanService != null) {
+            hasOverdueBooks = loanService.hasOverdueBooks(userId);
+        }
+
         System.out.println("\n" + "=".repeat(120));
         System.out.println("FINES FOR USER: " + userId + " - " + user.getName());
         System.out.println("Can borrow books: " + (user.canBorrow() ? "YES" : "NO"));
+        if (loanService != null) {
+            System.out.println("Has overdue books: " + (hasOverdueBooks ? "YES - Must return books before paying fines" : "NO"));
+        }
         System.out.println("=".repeat(120));
 
         if (fines.isEmpty()) {
@@ -139,10 +184,13 @@ public class FineService {
             }
             double totalUnpaid = getTotalUnpaidAmount(userId);
             System.out.println("\nTOTAL UNPAID: $" + totalUnpaid);
-            if (totalUnpaid > 0) {
-                System.out.println("User cannot borrow books until all fines are paid.");
+
+            if (loanService != null && hasOverdueBooks) {
+                System.out.println("❌ User has overdue books. Must return all books before paying fines.");
+            } else if (totalUnpaid > 0) {
+                System.out.println("⚠️ User cannot borrow books until all fines are paid.");
             } else {
-                System.out.println("All fines are paid. User can borrow books.");
+                System.out.println("✅ All fines are paid. User can borrow books.");
             }
         }
         System.out.println("=".repeat(120));
@@ -150,4 +198,5 @@ public class FineService {
 
     public FineRepository getFineRepository() { return fineRepository; }
     public UserRepository getUserRepository() { return userRepository; }
+    public LoanService getLoanService() { return loanService; }
 }

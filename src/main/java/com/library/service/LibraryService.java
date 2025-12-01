@@ -35,11 +35,14 @@ public class LibraryService {
         BookRepository sharedBookRepository = new BookRepository();
         this.bookService = new BookService(sharedBookRepository);
 
-        // FIX: Create FineService with the shared UserRepository
+        // FIX: Create FineService first (without LoanService dependency)
         this.fineService = new FineService(userRepository);
 
-        // FIX: Create LoanService with shared BookRepository
+        // FIX: Create LoanService with the FineService
         this.loanService = new LoanService(fineService, userRepository, sharedBookRepository);
+
+        // FIX: Now set the LoanService dependency in FineService
+        this.fineService.setLoanService(loanService);
 
         EmailService emailService = new EmailService();
         LoanRepository loanRepository = this.loanService.getLoanRepository();
@@ -103,7 +106,6 @@ public class LibraryService {
         return reminderService;
     }
 
-
     // ADD THESE NEW METHODS
     public void borrowBook() {
         System.out.println("\n=== BORROW BOOK ===");
@@ -122,7 +124,7 @@ public class LibraryService {
 
         Loan loan = loanService.borrowBook(userId, bookIsbn, LocalDate.now());
         if (loan != null) {
-            System.out.println("Book borrowed successfully!");
+            System.out.println("✅ Book borrowed successfully!");
             System.out.println("Due date: " + loan.getDueDate());
         }
     }
@@ -135,7 +137,7 @@ public class LibraryService {
 
         boolean success = loanService.returnBook(loanId, LocalDate.now());
         if (success) {
-            System.out.println("Book returned successfully!");
+            System.out.println("✅ Book returned successfully!");
         } else {
             // FIX: Removed the confusing "Check Loan ID" message
             // The LoanService.returnBook() method already provides specific error messages
@@ -153,7 +155,7 @@ public class LibraryService {
 
         List<Fine> unpaidFines = fineService.getUserUnpaidFines(userId);
         if (unpaidFines.isEmpty()) {
-            System.out.println("No unpaid fines found.");
+            System.out.println("✅ No unpaid fines found.");
             return;
         }
 
@@ -165,7 +167,7 @@ public class LibraryService {
             double paymentAmount = Double.parseDouble(scanner.nextLine().trim());
             fineService.payFine(fineId, paymentAmount);
         } catch (NumberFormatException e) {
-            System.out.println("Error: Invalid payment amount.");
+            System.out.println("❌ Error: Invalid payment amount.");
         }
     }
 
@@ -206,6 +208,12 @@ public class LibraryService {
         } else {
             for (Loan loan : userLoans) {
                 System.out.println(loan);
+            }
+
+            // Show summary
+            long overdueCount = userLoans.stream().filter(Loan::isOverdue).count();
+            if (overdueCount > 0) {
+                System.out.println("\n⚠️ User has " + overdueCount + " overdue book(s) that must be returned before paying fines or borrowing new books.");
             }
         }
         System.out.println("=".repeat(100));
@@ -257,4 +265,3 @@ public class LibraryService {
     public BookService getBookService() { return bookService; }
     public UserRepository getUserRepository() { return userRepository; } // Add this getter
 }
-
