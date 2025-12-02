@@ -26,8 +26,15 @@ class FineServiceTest {
     void setUp() {
         userRepository = new UserRepository();
         bookRepository = new BookRepository();
-        loanService = new LoanService(new FineService(userRepository), userRepository, bookRepository);
-        fineService = new FineService(userRepository, loanService);
+
+        // Create FineService first (without LoanService dependency)
+        fineService = new FineService(userRepository);
+
+        // Create LoanService with the FineService
+        loanService = new LoanService(fineService, userRepository, bookRepository);
+
+        // Set the LoanService dependency in FineService
+        fineService.setLoanService(loanService);
     }
 
     @Test
@@ -184,7 +191,12 @@ class FineServiceTest {
         assertTrue(paidFine.isPaid());
         assertEquals(0.0, paidFine.getRemainingBalance(), 0.001);
 
-        // Step 5: Now try to borrow a new book - should SUCCESS because fine is paid and overdue book is returned
+        // Step 5: IMPORTANT - Update user's canBorrow status after fine is paid
+        // The FineService.payFine() method should update this, but let's verify
+        User userAfterPayment = userRepository.findUserById("U002");
+        assertTrue(userAfterPayment.canBorrow());
+
+        // Step 6: Now try to borrow a new book - should SUCCESS because fine is paid and overdue book is returned
         Loan borrowAttempt2 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
         assertNotNull(borrowAttempt2);
 

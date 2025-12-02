@@ -59,7 +59,7 @@ public class LoanService {
             return null;
         }
 
-        // Check if user can borrow (no unpaid fines) - FIXED: Use the shared FineService
+        // Check if user can borrow (no unpaid fines)
         double unpaidFines = fineService.getTotalUnpaidAmount(userId);
         if (unpaidFines > 0) {
             System.out.println("❌ Error: User cannot borrow books. Unpaid fines: $" + unpaidFines);
@@ -140,7 +140,7 @@ public class LoanService {
                     .anyMatch(Loan::isOverdue);
 
             if (!stillHasOverdue) {
-                System.out.println("🎉 All overdue books returned! User can now pay fines and borrow new books.");
+                System.out.println("🎉 All overdue books returned! User can now pay fines.");
             }
         }
 
