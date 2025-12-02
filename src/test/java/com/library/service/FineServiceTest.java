@@ -170,7 +170,8 @@ class FineServiceTest {
         assertFalse(paymentAttempt1);
 
         // Step 2: Try to borrow a new book - should FAIL because of overdue book AND unpaid fine
-        Loan borrowAttempt1 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
+        // Use a different book ISBN that should be available
+        Loan borrowAttempt1 = loanService.borrowBook("U002", "978-0141439518", LocalDate.now());
         assertNull(borrowAttempt1);
 
         // Step 3: Return the overdue book - should SUCCESS (no fine check for returns)
@@ -197,12 +198,13 @@ class FineServiceTest {
         assertTrue(userAfterPayment.canBorrow());
 
         // Step 6: Now try to borrow a new book - should SUCCESS because fine is paid and overdue book is returned
-        Loan borrowAttempt2 = loanService.borrowBook("U002", "978-0451524935", LocalDate.now());
+        // Use "978-0141439518" which should be available (Pride and Prejudice)
+        Loan borrowAttempt2 = loanService.borrowBook("U002", "978-0141439518", LocalDate.now());
         assertNotNull(borrowAttempt2);
 
         // Verify the new loan details
         assertEquals("U002", borrowAttempt2.getUserId());
-        assertEquals("978-0451524935", borrowAttempt2.getBookIsbn());
+        assertEquals("978-0141439518", borrowAttempt2.getBookIsbn());
         assertEquals(LocalDate.now().plusDays(28), borrowAttempt2.getDueDate());
 
         // Final verification: User should now be able to borrow

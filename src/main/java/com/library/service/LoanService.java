@@ -20,15 +20,14 @@ public class LoanService {
     private UserRepository userRepository;
     private FineService fineService;
 
-    // FIX: Correct constructor order and parameters
+    // Constructor with all dependencies
     public LoanService(FineService fineService, UserRepository userRepository, BookRepository bookRepository) {
-        this.bookRepository = bookRepository; // Use the shared BookRepository instance
-        this.userRepository = userRepository; // Use the shared UserRepository instance
-        this.fineService = fineService; // Use the shared FineService instance
-        this.loanRepository = new LoanRepository(bookRepository); // Pass shared BookRepository to LoanRepository
+        this.bookRepository = bookRepository;
+        this.userRepository = userRepository;
+        this.fineService = fineService;
+        this.loanRepository = new LoanRepository(bookRepository);
     }
 
-    // Keep other constructors for backward compatibility
     public LoanService(FineService fineService, UserRepository userRepository) {
         this(fineService, userRepository, new BookRepository());
     }
@@ -48,14 +47,10 @@ public class LoanService {
             return null;
         }
 
-        // NEW CHECK: Check if user has any overdue books that need to be returned
-        List<Loan> userActiveLoans = getUserActiveLoans(userId);
-        boolean hasOverdueBooks = userActiveLoans.stream()
-                .anyMatch(Loan::isOverdue);
-
-        if (hasOverdueBooks) {
-            System.out.println("❌ Error: User cannot borrow new books. There are overdue books that need to be returned first.");
-            System.out.println("Please return all overdue books before borrowing new ones.");
+        // Check if user is active
+        if (!user.isActive()) {
+            System.out.println("❌ Error: User account is not active.");
+            System.out.println("Please contact administrator to reactivate your account.");
             return null;
         }
 
@@ -67,7 +62,18 @@ public class LoanService {
             return null;
         }
 
-        // FIX: Double-check the user's canBorrow flag and update if needed
+        // Check if user has any overdue books that need to be returned
+        List<Loan> userActiveLoans = getUserActiveLoans(userId);
+        boolean hasOverdueBooks = userActiveLoans.stream()
+                .anyMatch(Loan::isOverdue);
+
+        if (hasOverdueBooks) {
+            System.out.println("❌ Error: User cannot borrow new books. There are overdue books that need to be returned first.");
+            System.out.println("Please return all overdue books before borrowing new ones.");
+            return null;
+        }
+
+        // Double-check the user's canBorrow flag and update if needed
         if (!user.canBorrow() && unpaidFines == 0 && !hasOverdueBooks) {
             // If fines are paid, no overdue books, but user flag is still false, update it
             user.setCanBorrow(true);
@@ -118,14 +124,8 @@ public class LoanService {
             return false;
         }
 
-        // REMOVED: Fine check before returning book
-        // Users can now return books even with unpaid fines
-
         boolean returnSuccess = loanRepository.returnBook(loanId, returnDate);
         if (returnSuccess) {
-            // Book availability is already updated in LoanRepository.returnBook()
-
-            // Remove loan from user
             User user = userRepository.findUserById(loan.getUserId());
             if (user != null) {
                 user.removeLoan(loanId);
@@ -134,7 +134,6 @@ public class LoanService {
 
             System.out.println("✅ Book returned successfully!");
 
-            // Check if user still has overdue books after this return
             List<Loan> remainingLoans = getUserActiveLoans(loan.getUserId());
             boolean stillHasOverdue = remainingLoans.stream()
                     .anyMatch(Loan::isOverdue);
@@ -157,7 +156,6 @@ public class LoanService {
                 .filter(loan -> loan.getReturnDate() == null)
                 .collect(java.util.stream.Collectors.toList());
 
-        // Update overdue status for all active loans
         LocalDate currentDate = LocalDate.now();
         for (Loan loan : userLoans) {
             loan.checkOverdue(currentDate);

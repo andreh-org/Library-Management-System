@@ -73,8 +73,9 @@ public class Main {
             System.out.println("3. Add New Book");
             System.out.println("4. Search Books");
             System.out.println("5. View Overdue Books");
-            System.out.println("6. Send Overdue Reminders"); // NEW OPTION
-            System.out.println("7. Logout");
+            System.out.println("6. Send Overdue Reminders");
+            System.out.println("7. User Management"); // Renumbered from 8 to 7
+            System.out.println("8. Logout"); // Renumbered from 9 to 8
             System.out.print("Choose an option: ");
 
             int choice = getIntInput();
@@ -95,10 +96,13 @@ public class Main {
                 case 5:
                     libraryService.displayOverdueBooks();
                     break;
-                case 6: // NEW CASE
+                case 6:
                     libraryService.sendOverdueReminders();
                     break;
-                case 7:
+                case 7: // Now User Management (was Manage Borrowing Rules)
+                    libraryService.manageUsers();
+                    break;
+                case 8: // Now Logout (was User Management)
                     libraryService.getAuthService().logout();
                     System.out.println("Logged out successfully.");
                     break;
@@ -108,7 +112,7 @@ public class Main {
         }
     }
 
-    // KEEP ALL EXISTING METHODS BELOW (searchBooks, adminLogin, addNewBook, getIntInput)
+    // ... rest of existing methods remain the same ...
     private static void searchBooks() {
         System.out.print("\nEnter search query (title, author, or ISBN): ");
         String query = scanner.nextLine().trim();

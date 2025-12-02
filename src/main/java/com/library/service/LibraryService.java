@@ -25,27 +25,32 @@ public class LibraryService {
     private LoanService loanService;
     private FineService fineService;
     private ReminderService reminderService;
+    private UserManagementService userManagementService;
     private Scanner scanner;
 
     public LibraryService() {
         this.authService = new AuthService();
         this.userRepository = new UserRepository();
 
-        // FIX: Create shared BookRepository first
+        // Create shared BookRepository first
         BookRepository sharedBookRepository = new BookRepository();
         this.bookService = new BookService(sharedBookRepository);
 
-        // FIX: Create FineService first (without LoanService dependency)
+        // Create FineService first (without LoanService dependency)
         this.fineService = new FineService(userRepository);
 
-        // FIX: Create LoanService with the FineService
+        // Create LoanService with the FineService
         this.loanService = new LoanService(fineService, userRepository, sharedBookRepository);
 
-        // FIX: Now set the LoanService dependency in FineService
+        // Set the LoanService dependency in FineService
         this.fineService.setLoanService(loanService);
 
+        // Create UserManagementService
+        LoanRepository loanRepository = new LoanRepository(sharedBookRepository);
+        this.userManagementService = new UserManagementService(userRepository, loanRepository,
+                fineService.getFineRepository());
+
         EmailService emailService = new EmailService();
-        LoanRepository loanRepository = this.loanService.getLoanRepository();
         this.reminderService = new ReminderService(emailService, loanRepository, userRepository);
 
         this.scanner = new Scanner(System.in);
@@ -102,11 +107,132 @@ public class LibraryService {
         }
     }
 
-    public ReminderService getReminderService() {
-        return reminderService;
+    // User Management method
+    public void manageUsers() {
+        if (!authService.isLoggedIn()) {
+            System.out.println("❌ Error: Admin login required to manage users.");
+            return;
+        }
+
+        System.out.println("\n=== USER MANAGEMENT ===");
+        System.out.println("1. Unregister user");
+        System.out.println("2. View active users");
+        System.out.println("3. View inactive users");
+        System.out.println("4. Reactivate user");
+        System.out.println("5. Back to main menu");
+        System.out.print("Choose an option: ");
+
+        int choice = getIntInput();
+        switch (choice) {
+            case 1:
+                unregisterUser();
+                break;
+            case 2:
+                displayActiveUsers();
+                break;
+            case 3:
+                displayInactiveUsers();
+                break;
+            case 4:
+                reactivateUser();
+                break;
+            case 5:
+                System.out.println("Returning to main menu...");
+                break;
+            default:
+                System.out.println("Invalid option.");
+        }
     }
 
-    // ADD THESE NEW METHODS
+    private void unregisterUser() {
+        System.out.println("\n=== UNREGISTER USER ===");
+
+        // Display active users first
+        List<User> activeUsers = userManagementService.getActiveUsers();
+        if (activeUsers.isEmpty()) {
+            System.out.println("No active users found.");
+            return;
+        }
+
+        System.out.println("\nActive Users:");
+        System.out.println("=".repeat(80));
+        for (int i = 0; i < activeUsers.size(); i++) {
+            System.out.println((i + 1) + ". " + activeUsers.get(i));
+        }
+        System.out.println("=".repeat(80));
+
+        System.out.print("Enter User ID to unregister: ");
+        String userId = scanner.nextLine().trim();
+
+        System.out.print("Are you sure you want to unregister user " + userId + "? (yes/no): ");
+        String confirmation = scanner.nextLine().trim().toLowerCase();
+
+        if (confirmation.equals("yes") || confirmation.equals("y")) {
+            UserManagementService.UnregistrationResult result =
+                    userManagementService.unregisterUser(userId, authService);
+            System.out.println(result.getMessage());
+        } else {
+            System.out.println("Operation cancelled.");
+        }
+    }
+
+    private void displayActiveUsers() {
+        List<User> activeUsers = userManagementService.getActiveUsers();
+        System.out.println("\n" + "=".repeat(80));
+        System.out.println("ACTIVE USERS");
+        System.out.println("=".repeat(80));
+
+        if (activeUsers.isEmpty()) {
+            System.out.println("No active users found.");
+        } else {
+            for (int i = 0; i < activeUsers.size(); i++) {
+                System.out.println((i + 1) + ". " + activeUsers.get(i));
+            }
+        }
+        System.out.println("=".repeat(80));
+    }
+
+    private void displayInactiveUsers() {
+        List<User> inactiveUsers = userManagementService.getInactiveUsers();
+        System.out.println("\n" + "=".repeat(80));
+        System.out.println("INACTIVE USERS");
+        System.out.println("=".repeat(80));
+
+        if (inactiveUsers.isEmpty()) {
+            System.out.println("No inactive users found.");
+        } else {
+            for (int i = 0; i < inactiveUsers.size(); i++) {
+                System.out.println((i + 1) + ". " + inactiveUsers.get(i));
+            }
+        }
+        System.out.println("=".repeat(80));
+    }
+
+    private void reactivateUser() {
+        System.out.println("\n=== REACTIVATE USER ===");
+
+        List<User> inactiveUsers = userManagementService.getInactiveUsers();
+        if (inactiveUsers.isEmpty()) {
+            System.out.println("No inactive users found.");
+            return;
+        }
+
+        System.out.println("\nInactive Users:");
+        System.out.println("=".repeat(80));
+        for (int i = 0; i < inactiveUsers.size(); i++) {
+            System.out.println((i + 1) + ". " + inactiveUsers.get(i));
+        }
+        System.out.println("=".repeat(80));
+
+        System.out.print("Enter User ID to reactivate: ");
+        String userId = scanner.nextLine().trim();
+
+        boolean success = userManagementService.reactivateUser(userId, authService);
+        if (!success) {
+            System.out.println("Failed to reactivate user.");
+        }
+    }
+
     public void borrowBook() {
         System.out.println("\n=== BORROW BOOK ===");
 
@@ -119,6 +245,13 @@ public class LibraryService {
         User user = userRepository.findUserById(userId);
         if (user == null) {
             System.out.println("Error: User not found.");
+            return;
+        }
+
+        // Check if user is active
+        if (!user.isActive()) {
+            System.out.println("❌ Error: User account is not active.");
+            System.out.println("Please contact administrator to reactivate your account.");
             return;
         }
 
@@ -138,10 +271,6 @@ public class LibraryService {
         boolean success = loanService.returnBook(loanId, LocalDate.now());
         if (success) {
             System.out.println("✅ Book returned successfully!");
-        } else {
-            // FIX: Removed the confusing "Check Loan ID" message
-            // The LoanService.returnBook() method already provides specific error messages
-            // So we don't need to add another generic error message here
         }
     }
 
@@ -219,11 +348,13 @@ public class LibraryService {
         System.out.println("=".repeat(100));
     }
 
-    // ADD THESE GETTERS
-    public LoanService getLoanService() { return loanService; }
-    public FineService getFineService() { return fineService; }
+    public ReminderService getReminderService() {
+        return reminderService;
+    }
 
-    // KEEP ALL EXISTING METHODS BELOW (displayAllBooks, displayAllUsers, getAuthService, getBookService)
+    // Getter for UserManagementService
+    public UserManagementService getUserManagementService() { return userManagementService; }
+
     public void displayAllBooks() {
         List<Book> books = bookService.getAllBooks();
         System.out.println("\n" + "=".repeat(100));
@@ -248,7 +379,7 @@ public class LibraryService {
 
         List<User> users = userRepository.getAllUsers();
         System.out.println("\n" + "=".repeat(80));
-        System.out.println("REGISTERED USERS");
+        System.out.println("REGISTERED USERS (ALL)");
         System.out.println("=".repeat(80));
 
         if (users.isEmpty()) {
@@ -263,5 +394,7 @@ public class LibraryService {
 
     public AuthService getAuthService() { return authService; }
     public BookService getBookService() { return bookService; }
-    public UserRepository getUserRepository() { return userRepository; } // Add this getter
+    public UserRepository getUserRepository() { return userRepository; }
+    public LoanService getLoanService() { return loanService; }
+    public FineService getFineService() { return fineService; }
 }

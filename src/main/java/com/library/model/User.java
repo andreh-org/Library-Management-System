@@ -14,6 +14,7 @@ public class User {
     private String email;
     private List<String> currentLoans;
     private boolean canBorrow;
+    private boolean isActive; // NEW FIELD: User registration status
 
     public User(String userId, String name, String email) {
         this.userId = userId;
@@ -21,6 +22,7 @@ public class User {
         this.email = email;
         this.currentLoans = new ArrayList<>();
         this.canBorrow = true;
+        this.isActive = true; // New users are active by default
     }
 
     // Getters and setters
@@ -39,6 +41,9 @@ public class User {
     public boolean canBorrow() { return canBorrow; }
     public void setCanBorrow(boolean canBorrow) { this.canBorrow = canBorrow; }
 
+    public boolean isActive() { return isActive; } // NEW GETTER
+    public void setActive(boolean active) { isActive = active; } // NEW SETTER
+
     public void addLoan(String loanId) {
         if (!currentLoans.contains(loanId)) {
             currentLoans.add(loanId);
@@ -53,9 +58,17 @@ public class User {
         return !currentLoans.isEmpty();
     }
 
+    /**
+     * Checks if user can be unregistered
+     * @return true if user has no active loans and no unpaid fines, false otherwise
+     */
+    public boolean canBeUnregistered() {
+        return !hasCurrentLoans();
+    }
+
     @Override
     public String toString() {
-        return String.format("ID: %-10s | Name: %-20s | Email: %-25s | Can Borrow: %s",
-                userId, name, email, canBorrow ? "Yes" : "No");
+        return String.format("ID: %-10s | Name: %-20s | Email: %-25s | Can Borrow: %s | Active: %s",
+                userId, name, email, canBorrow ? "Yes" : "No", isActive ? "Yes" : "No");
     }
 }
