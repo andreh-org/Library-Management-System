@@ -8,7 +8,7 @@ import static org.mockito.Mockito.*;
 /**
  * Test class for library reminder processor
  * @author Library Team
- * @version 1.0
+ * @version 1.1
  */
 class LibraryReminderProcessorTest {
 
@@ -19,15 +19,17 @@ class LibraryReminderProcessorTest {
         LoanRepository mockLoanRepository = mock(LoanRepository.class);
         UserRepository mockUserRepository = mock(UserRepository.class);
 
-        ReminderService reminderService = new ReminderService(mockEmailService, mockLoanRepository, mockUserRepository);
+        // Use constructor that sends to provided email
+        ReminderService reminderService = new ReminderService(
+                mockEmailService, mockLoanRepository, mockUserRepository, false);
 
         // Act
         reminderService.sendOverdueReminder("andrehkhouri333@gmail.com", "John Doe", 3);
 
         // Assert
-        verify(mockEmailService, times(1))
+        verify(mockEmailService, timeout(1000).times(1))
                 .sendEmail(eq("andrehkhouri333@gmail.com"),
-                        eq("Overdue Book Reminder"),
-                        contains("You have 3 overdue item(s)"));  // Changed from "book(s)" to "item(s)"
+                        eq("Overdue Item Reminder"),
+                        contains("You have 3 overdue item(s)"));
     }
 }

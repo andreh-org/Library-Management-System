@@ -4,20 +4,26 @@ import com.library.model.Fine;
 import com.library.model.User;
 import com.library.repository.FineRepository;
 import com.library.repository.UserRepository;
+import com.library.strategy.FineContext;
+import com.library.observer.*;
+import com.library.strategy.FineStrategy;
+
 import java.util.List;
 
 /**
- * Service for handling fine-related operations
+ * Service for handling fine-related operations with Strategy and Observer Patterns
  * @author Library Team
- * @version 1.0
+ * @version 2.0
  */
 public class FineService {
     private FineRepository fineRepository;
     private UserRepository userRepository;
     private LoanService loanService;
+    private FineContext fineContext; // Strategy Pattern context
+    private LoanSubject notificationSubject; // Observer Pattern subject
 
     /**
-     * Gets fine breakdown by media type
+     * Gets fine breakdown by media type using Strategy Pattern
      * @param userId the user ID
      * @return formatted string with fine breakdown
      */
@@ -29,10 +35,10 @@ public class FineService {
         }
 
         StringBuilder breakdown = new StringBuilder();
-        breakdown.append("\n📊 FINE BREAKDOWN BY MEDIA TYPE:");
+        breakdown.append("\n📊 FINE BREAKDOWN BY MEDIA TYPE (Using Strategy Pattern):");
         breakdown.append("\n").append("-".repeat(50));
 
-        // Separate fines by media type
+        // Separate fines by media type using Strategy Pattern
         double bookFines = 0;
         double cdsFines = 0;
         int bookCount = 0;
@@ -56,12 +62,15 @@ public class FineService {
             }
         }
 
+        // Show breakdown using Strategy Pattern data
         if (bookCount > 0) {
-            breakdown.append(String.format("\n📚 BOOK Fines: %d items | Total: $%.2f", bookCount, bookFines));
+            breakdown.append(String.format("\n📚 BOOK Fines: %d items | Total: $%.2f (Flat fine: $%.2f)",
+                    bookCount, bookFines, fineContext.getFlatFine("BOOK")));
         }
 
         if (cdCount > 0) {
-            breakdown.append(String.format("\n💿 CD Fines: %d items | Total: $%.2f", cdCount, cdsFines));
+            breakdown.append(String.format("\n💿 CD Fines: %d items | Total: $%.2f (Flat fine: $%.2f)",
+                    cdCount, cdsFines, fineContext.getFlatFine("CD")));
         }
 
         double total = bookFines + cdsFines;
@@ -85,6 +94,11 @@ public class FineService {
         this.fineRepository = new FineRepository();
         this.userRepository = userRepository;
         this.loanService = loanService;
+        this.fineContext = new FineContext(); // Initialize Strategy Pattern context
+        this.notificationSubject = new LoanSubject(null); // Initialize Observer Pattern subject
+
+        // Attach default observers
+        attachDefaultObservers();
     }
 
     // Constructor without LoanService - for backward compatibility
@@ -92,6 +106,9 @@ public class FineService {
         this.fineRepository = new FineRepository();
         this.userRepository = userRepository;
         this.loanService = null; // Will be set later via setter
+        this.fineContext = new FineContext();
+        this.notificationSubject = new LoanSubject(null);
+        attachDefaultObservers();
     }
 
     // Default constructor
@@ -99,6 +116,20 @@ public class FineService {
         this.fineRepository = new FineRepository();
         this.userRepository = new UserRepository();
         this.loanService = null; // Will be set later via setter
+        this.fineContext = new FineContext();
+        this.notificationSubject = new LoanSubject(null);
+        attachDefaultObservers();
+    }
+
+    /**
+     * Attach default observers for notifications
+     */
+    private void attachDefaultObservers() {
+        // Console notifier for debugging
+        notificationSubject.attach(new ConsoleNotifier());
+
+        // File logger for audit trail
+        notificationSubject.attach(new FileLoggerNotifier("library_fines.log"));
     }
 
     /**
@@ -109,7 +140,7 @@ public class FineService {
     }
 
     /**
-     * Apply flat fine based on media type
+     * Apply flat fine based on media type using Strategy Pattern
      */
     public Fine applyFine(String userId, String reason, String loanId) {
         if (loanService == null) {
@@ -124,13 +155,8 @@ public class FineService {
             return null;
         }
 
-        // Calculate flat fine based on media type
-        double fineAmount = 0.0;
-        if ("BOOK".equals(loan.getMediaType())) {
-            fineAmount = 10.00; // $10 for books
-        } else if ("CD".equals(loan.getMediaType())) {
-            fineAmount = 20.00; // $20 for CDs
-        }
+        // Use Strategy Pattern to calculate fine
+        double fineAmount = fineContext.getFlatFine(loan.getMediaType());
 
         if (fineAmount <= 0) {
             System.out.println("❌ Error: Invalid fine amount.");
@@ -157,7 +183,21 @@ public class FineService {
                 user.setCanBorrow(false);
                 userRepository.updateUser(user);
             }
-            System.out.println("Fine applied: $" + fineAmount + " for " + reason);
+
+            System.out.println("Fine applied using " + loan.getMediaType() +
+                    " strategy: $" + fineAmount + " for " + reason);
+
+            // Notify observers about the fine using Observer Pattern
+            if (user != null) {
+                NotificationEvent event = new NotificationEvent(
+                        user,
+                        "FINE_APPLIED",
+                        String.format("A fine of $%.2f has been applied to your account for: %s",
+                                fineAmount, reason),
+                        fine
+                );
+                notificationSubject.notifyObservers(event);
+            }
         }
         return fine;
     }
@@ -169,7 +209,7 @@ public class FineService {
         // Validate amount
         if (amount <= 0) {
             System.out.println("❌ Error: Fine amount must be positive.");
-            return null;  // Return null for invalid amounts
+            return null;
         }
 
         // For backward compatibility - create fine without loan ID
@@ -181,11 +221,27 @@ public class FineService {
                 user.setCanBorrow(false);
                 userRepository.updateUser(user);
             }
+
             System.out.println("Fine applied: $" + amount + " for " + reason);
+
+            // Notify observers
+            if (user != null) {
+                NotificationEvent event = new NotificationEvent(
+                        user,
+                        "FINE_APPLIED",
+                        String.format("A fine of $%.2f has been applied to your account for: %s",
+                                amount, reason),
+                        fine
+                );
+                notificationSubject.notifyObservers(event);
+            }
         }
         return fine;
     }
 
+    /**
+     * Pay a fine and notify observers
+     */
     public boolean payFine(String fineId, double paymentAmount) {
         if (paymentAmount <= 0) {
             System.out.println("❌ Error: Payment amount must be positive.");
@@ -242,6 +298,19 @@ public class FineService {
 
             if (fine.isPaid()) {
                 System.out.println("✅ Fine " + fineId + " has been fully paid.");
+
+                // Notify observers about successful payment
+                User user = userRepository.findUserById(userId);
+                if (user != null) {
+                    NotificationEvent event = new NotificationEvent(
+                            user,
+                            "FINE_PAID",
+                            String.format("Fine %s has been fully paid. Amount: $%.2f",
+                                    fineId, fine.getAmount()),
+                            fine
+                    );
+                    notificationSubject.notifyObservers(event);
+                }
             } else {
                 System.out.println("Remaining balance: $" + fine.getRemainingBalance());
             }
@@ -271,12 +340,88 @@ public class FineService {
                 if (updated) {
                     if (canBorrowNow) {
                         System.out.println("🎉 All fines paid! User " + userId + " can now borrow books.");
+
+                        // Notify observers
+                        NotificationEvent event = new NotificationEvent(
+                                user,
+                                "BORROWING_RESTORED",
+                                "All fines have been paid. Borrowing privileges restored.",
+                                null
+                        );
+                        notificationSubject.notifyObservers(event);
                     } else {
                         System.out.println("⚠️ User " + userId + " cannot borrow books due to unpaid fines.");
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Attach an email observer for notifications
+     * @param emailService the email service to use
+     */
+    public void attachEmailObserver(EmailService emailService) {
+        notificationSubject.attach(new EmailNotifier(emailService));
+        System.out.println("✅ Email notification observer attached.");
+    }
+
+    /**
+     * Attach a custom observer
+     * @param observer the observer to attach
+     */
+    public void attachObserver(Observer observer) {
+        notificationSubject.attach(observer);
+        System.out.println("✅ Custom observer attached: " + observer.getClass().getSimpleName());
+    }
+
+    /**
+     * Detach an observer
+     * @param observer the observer to detach
+     */
+    public void detachObserver(Observer observer) {
+        notificationSubject.detach(observer);
+        System.out.println("✅ Observer detached: " + observer.getClass().getSimpleName());
+    }
+
+    /**
+     * Register a new fine strategy (Strategy Pattern)
+     * @param mediaType the media type
+     * @param strategyClassName the strategy class name
+     */
+    public void registerFineStrategy(String mediaType, String strategyClassName) {
+        try {
+            Class<?> strategyClass = Class.forName(strategyClassName);
+            FineStrategy strategy = (FineStrategy) strategyClass.getDeclaredConstructor().newInstance();
+            fineContext.registerStrategy(mediaType, strategy);
+            System.out.println("✅ Registered new fine strategy for " + mediaType + ": " + strategyClassName);
+        } catch (Exception e) {
+            System.err.println("❌ Failed to register strategy: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Demo Strategy Pattern with different media types
+     */
+    public void demonstrateStrategyPattern() {
+        System.out.println("\n🎯 DEMONSTRATING STRATEGY PATTERN");
+        System.out.println("=".repeat(50));
+
+        String[] testMediaTypes = {"BOOK", "CD", "JOURNAL", "DVD"};
+        int overdueDays = 5;
+
+        for (String mediaType : testMediaTypes) {
+            try {
+                double fine = fineContext.calculateFine(mediaType, overdueDays);
+                System.out.printf("  • %-10s: $%.2f (for %d days overdue)%n",
+                        mediaType, fine, overdueDays);
+            } catch (Exception e) {
+                System.out.printf("  • %-10s: No strategy found (defaults to BOOK)%n", mediaType);
+            }
+        }
+
+        System.out.println("=".repeat(50));
+        System.out.println("✨ Benefits: Easy to add new media types without modifying existing code!");
     }
 
     public List<Fine> getUserFines(String userId) {
@@ -334,7 +479,10 @@ public class FineService {
         System.out.println("=".repeat(120));
     }
 
+    // Getters
     public FineRepository getFineRepository() { return fineRepository; }
     public UserRepository getUserRepository() { return userRepository; }
     public LoanService getLoanService() { return loanService; }
+    public FineContext getFineContext() { return fineContext; } // Strategy Pattern context
+    public LoanSubject getNotificationSubject() { return notificationSubject; } // Observer Pattern subject
 }

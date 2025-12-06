@@ -1,0 +1,59 @@
+[2025-12-06T13:42:41.8780976] OVERDUE_DETECTED - TEMP - You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T13:42:42.107366] OVERDUE_DETECTED - TEMP - You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T13:42:42.2841838] OVERDUE_DETECTED - null - You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T13:42:42.5396788] OVERDUE_DETECTED - null - You have 1 overdue item(s). Please return them as soon as possible.
+[2025-12-06T13:42:42.5421886] OVERDUE_DETECTED - null - You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:05:50.8682296] OVERDUE_DETECTED - TEMP - You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:05:51.1261752] FINE_APPLIED - U001 - A fine of $25.00 has been applied to your account for: Late return
+[2025-12-06T14:05:51.270505] OVERDUE_DETECTED - TEMP - You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:05:51.4404904] OVERDUE_DETECTED - null - You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:05:51.7441445] OVERDUE_DETECTED - null - You have 1 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:05:51.7466651] OVERDUE_DETECTED - null - You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:49.9460418] OVERDUE_DETECTED - TEMP - Dear John Doe,
+
+You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:50.2457648] OVERDUE_DETECTED - null - Dear John Smith,
+
+You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:50.2762347] OVERDUE_DETECTED - null - Dear John Smith,
+
+You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:50.2910114] OVERDUE_DETECTED - null - Dear Michael Brown,
+
+You have 1 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:50.3160495] FINE_APPLIED - U001 - Dear John Smith,
+
+A fine of $25.00 has been applied to your account for: Late return
+[2025-12-06T14:38:50.3469004] OVERDUE_DETECTED - TEMP - Dear Test User,
+
+You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:50.6206186] OVERDUE_DETECTED - null - Dear Emma Johnson,
+
+You have 1 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:38:50.6256648] OVERDUE_DETECTED - null - Dear John Smith,
+
+You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:29.4285275] OVERDUE_DETECTED - TEMP - Dear John Doe,
+
+You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:29.7578463] OVERDUE_DETECTED - null - Dear John Smith,
+
+You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:29.786913] OVERDUE_DETECTED - null - Dear John Smith,
+
+You have 2 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:29.801048] OVERDUE_DETECTED - null - Dear Michael Brown,
+
+You have 1 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:29.8176329] FINE_APPLIED - U001 - Dear John Smith,
+
+A fine of $25.00 has been applied to your account for: Late return
+[2025-12-06T14:39:29.8696115] OVERDUE_DETECTED - TEMP - Dear Test User,
+
+You have 3 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:30.0877332] OVERDUE_DETECTED - null - Dear Emma Johnson,
+
+You have 1 overdue item(s). Please return them as soon as possible.
+[2025-12-06T14:39:30.090556] OVERDUE_DETECTED - null - Dear John Smith,
+
+You have 2 overdue item(s). Please return them as soon as possible.

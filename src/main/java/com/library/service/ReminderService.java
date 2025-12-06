@@ -2,30 +2,57 @@ package com.library.service;
 
 import com.library.model.Loan;
 import com.library.model.User;
+import com.library.observer.*;
 import com.library.repository.LoanRepository;
 import com.library.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * Service for handling reminder operations
+ * Service for handling reminder operations with Observer Pattern
  * @author Library Team
- * @version 1.0
+ * @version 2.1
  */
 public class ReminderService {
     private final EmailService emailService;
     private final LoanRepository loanRepository;
     private final UserRepository userRepository;
+    private final LoanSubject loanSubject; // Observer Pattern subject
 
     public ReminderService(EmailService emailService, LoanRepository loanRepository, UserRepository userRepository) {
         this.emailService = emailService;
         this.loanRepository = loanRepository;
         this.userRepository = userRepository;
+        this.loanSubject = new LoanSubject(null);
+
+        // Attach observers - use real user emails
+        attachObservers(false); // Pass false to use actual user emails
+    }
+
+    // NEW: Constructor with configurable email destination
+    public ReminderService(EmailService emailService, LoanRepository loanRepository,
+                           UserRepository userRepository, boolean useFixedEmail) {
+        this.emailService = emailService;
+        this.loanRepository = loanRepository;
+        this.userRepository = userRepository;
+        this.loanSubject = new LoanSubject(null);
+
+        attachObservers(useFixedEmail);
+    }
+
+    private void attachObservers(boolean useFixedEmail) {
+        // Attach email notifier with configurable email destination
+        loanSubject.attach(new EmailNotifier(emailService, useFixedEmail));
+
+        // Attach console notifier for debugging
+        loanSubject.attach(new ConsoleNotifier());
+
+        // Attach file logger
+        loanSubject.attach(new FileLoggerNotifier("library_notifications.log"));
     }
 
     /**
-     * Sends overdue reminders to all users with overdue books
+     * Send overdue reminders using Observer Pattern
      */
     public void sendOverdueRemindersToAllUsers() {
         LocalDate currentDate = LocalDate.now();
@@ -33,20 +60,31 @@ public class ReminderService {
 
         // Group overdue loans by user
         var loansByUser = overdueLoans.stream()
-                .collect(Collectors.groupingBy(Loan::getUserId));
+                .collect(java.util.stream.Collectors.groupingBy(Loan::getUserId));
 
         for (var entry : loansByUser.entrySet()) {
             String userId = entry.getKey();
             List<Loan> userOverdueLoans = entry.getValue();
+            User user = userRepository.findUserById(userId);
 
-            sendOverdueReminderToUser(userId, userOverdueLoans.size());
+            if (user != null) {
+                // Create notification event
+                NotificationEvent event = new NotificationEvent(
+                        user,
+                        "OVERDUE_DETECTED",
+                        String.format("Dear %s,\n\nYou have %d overdue item(s). Please return them as soon as possible.",
+                                user.getName(), userOverdueLoans.size()),
+                        userOverdueLoans
+                );
+
+                // Update subject and notify observers
+                loanSubject.notifyObservers(event);
+            }
         }
     }
 
     /**
-     * Sends an overdue reminder to a specific user
-     * @param userId the user ID
-     * @param overdueCount the number of overdue books
+     * Send overdue reminder to specific user using Observer Pattern
      */
     public void sendOverdueReminderToUser(String userId, int overdueCount) {
         User user = userRepository.findUserById(userId);
@@ -55,39 +93,48 @@ public class ReminderService {
             return;
         }
 
-        String userEmail = "andrehkhouri333@gmail.com"; // Fixed email as requested
-        String subject = "Overdue Book Reminder";
-        String body = String.format(
-                "Dear %s,\n\nYou have %d overdue item(s). Please return them as soon as possible to avoid additional fines.\n\nBest regards,\nAn Najah Library System",
-                user.getName(), overdueCount
+        // Create notification event
+        NotificationEvent event = new NotificationEvent(
+                user,
+                "OVERDUE_DETECTED",
+                String.format("Dear %s,\n\nYou have %d overdue item(s). Please return them as soon as possible.",
+                        user.getName(), overdueCount)
         );
 
-        try {
-            emailService.sendEmail(userEmail, subject, body);
-            System.out.println("Overdue reminder sent to " + user.getName() + " (" + userId + ")");
-        } catch (Exception e) {
-            System.out.println("Failed to send reminder to " + user.getName() + ": " + e.getMessage());
-        }
+        // Notify observers
+        loanSubject.notifyObservers(event);
     }
 
     /**
-     * Sends overdue reminder to a user by email (alternative method)
-     * @param email the user's email
-     * @param userName the user's name
-     * @param overdueCount the number of overdue books
+     * Direct method for backward compatibility
+     * This method creates a temporary user with the provided email
      */
     public void sendOverdueReminder(String email, String userName, int overdueCount) {
-        String subject = "Overdue Book Reminder";
-        String body = String.format(
-                "Dear %s,\n\nYou have %d overdue item(s). Please return them as soon as possible to avoid additional fines.\n\nBest regards,\nAn Najah Library System",
-                userName, overdueCount
+        // Create a temporary user with the provided email
+        User tempUser = new User("TEMP", userName, email);
+
+        NotificationEvent event = new NotificationEvent(
+                tempUser,
+                "OVERDUE_DETECTED",
+                String.format("Dear %s,\n\nYou have %d overdue item(s). Please return them as soon as possible.",
+                        userName, overdueCount)
         );
 
-        try {
-            emailService.sendEmail(email, subject, body);
-            System.out.println("Overdue reminder sent to " + userName + " at " + email);
-        } catch (Exception e) {
-            System.out.println("Failed to send reminder to " + email + ": " + e.getMessage());
-        }
+        loanSubject.notifyObservers(event);
+    }
+
+    /**
+     * Send fine notification using Observer Pattern
+     */
+    public void sendFineNotification(User user, double fineAmount, String reason) {
+        NotificationEvent event = new NotificationEvent(
+                user,
+                "FINE_APPLIED",
+                String.format("Dear %s,\n\nA fine of $%.2f has been applied to your account for: %s",
+                        user.getName(), fineAmount, reason),
+                fineAmount
+        );
+
+        loanSubject.notifyObservers(event);
     }
 }
