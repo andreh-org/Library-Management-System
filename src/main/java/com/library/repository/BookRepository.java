@@ -48,10 +48,15 @@ public class BookRepository {
      * @return list of matching books
      */
     public List<Book> searchBooks(String query) {
+        if (query == null) {
+            return new ArrayList<>(); // Return empty list for null query
+        }
+
+        String lowerQuery = query.toLowerCase();
         return books.stream()
-                .filter(book -> book.getTitle().toLowerCase().contains(query.toLowerCase()) ||
-                        book.getAuthor().toLowerCase().contains(query.toLowerCase()) ||
-                        book.getIsbn().toLowerCase().contains(query.toLowerCase()))
+                .filter(book -> book.getTitle().toLowerCase().contains(lowerQuery) ||
+                        book.getAuthor().toLowerCase().contains(lowerQuery) ||
+                        book.getIsbn().toLowerCase().contains(lowerQuery))
                 .collect(Collectors.toList());
     }
 

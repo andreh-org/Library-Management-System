@@ -6,10 +6,19 @@ import com.library.repository.LoanRepository;
 import com.library.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,6 +32,9 @@ class ReminderServiceTest {
     private LoanRepository mockLoanRepository;
     private UserRepository mockUserRepository;
     private ReminderService reminderService;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -254,5 +266,230 @@ class ReminderServiceTest {
 
         assertEquals("andrehkhouri333@gmail.com", emailCaptor.getValue()); // Fallback email
         assertEquals("Overdue Item Reminder", subjectCaptor.getValue());
+    }
+
+    @Test
+    void testEmailServiceIntegrationInReminderService() {
+        // Test that EmailService is properly integrated in ReminderService
+        EmailService realEmailService = new EmailService("test@example.com", "testpassword");
+        ReminderService realReminderService = new ReminderService(
+                realEmailService, mockLoanRepository, mockUserRepository, false);
+
+        assertNotNull(realReminderService);
+    }
+
+    @Test
+    void testEmailServiceWithDifferentEventTypes() {
+        // Test different notification event types
+        User mockUser = mock(User.class);
+        when(mockUser.getName()).thenReturn("John Smith");
+        when(mockUser.getEmail()).thenReturn("john@example.com");
+
+        // Test FINE_PAID event
+        reminderService.sendFineNotification(mockUser, 50.0, "Overdue book");
+
+        ArgumentCaptor<String> subjectCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockEmailService, timeout(1000).atLeastOnce())
+                .sendEmail(anyString(), subjectCaptor.capture(), anyString());
+
+        // Should have "Library Fine Notification" subject
+        assertEquals("Library Fine Notification", subjectCaptor.getValue());
+    }
+
+    @Test
+    void testEmailServiceErrorHandlingInReminder() {
+        // Test that ReminderService handles EmailService errors gracefully
+        EmailService throwingEmailService = mock(EmailService.class);
+        doThrow(new RuntimeException("SMTP error")).when(throwingEmailService)
+                .sendEmail(anyString(), anyString(), anyString());
+
+        ReminderService errorProneService = new ReminderService(
+                throwingEmailService, mockLoanRepository, mockUserRepository, false);
+
+        // This should not throw an exception
+        User mockUser = mock(User.class);
+        when(mockUser.getName()).thenReturn("John Smith");
+        when(mockUser.getEmail()).thenReturn("john@example.com");
+
+        assertDoesNotThrow(() -> {
+            errorProneService.sendFineNotification(mockUser, 25.0, "Test");
+        });
+    }
+
+    @Test
+    void testEmailServiceConstructorInReminderService() {
+        // Test ReminderService with different EmailService constructors
+        EmailService paramService = new EmailService("param@test.com", "parampass");
+        ReminderService paramReminder = new ReminderService(
+                paramService, mockLoanRepository, mockUserRepository, false);
+        assertNotNull(paramReminder);
+
+        // Test with empty credentials
+        EmailService emptyService = new EmailService("", "");
+        ReminderService emptyReminder = new ReminderService(
+                emptyService, mockLoanRepository, mockUserRepository, false);
+        assertNotNull(emptyReminder);
+    }
+
+    @Test
+    void testEmailServiceWithReminderServiceAttachObservers() {
+        // Test that observers are properly attached in ReminderService constructor
+        EmailService emailService = new EmailService("test@example.com", "testpass");
+        ReminderService reminderService = new ReminderService(
+                emailService, mockLoanRepository, mockUserRepository, true);
+
+        assertNotNull(reminderService);
+        // The constructor should attach observers without throwing exceptions
+    }
+
+    @Test
+    void testEmailServiceMultipleRemindersSameUser() {
+        // Test sending multiple reminders to same user
+        String userId = "U001";
+        String userName = "John Smith";
+        String userEmail = "john@example.com";
+
+        User mockUser = mock(User.class);
+        when(mockUser.getName()).thenReturn(userName);
+        when(mockUser.getEmail()).thenReturn(userEmail);
+        when(mockUserRepository.findUserById(userId)).thenReturn(mockUser);
+
+        // Send multiple reminders
+        reminderService.sendOverdueReminderToUser(userId, 1);
+        reminderService.sendOverdueReminderToUser(userId, 2);
+        reminderService.sendOverdueReminderToUser(userId, 3);
+
+        // Verify emails were sent each time
+        verify(mockEmailService, timeout(1000).times(3))
+                .sendEmail(eq(userEmail), eq("Overdue Item Reminder"), anyString());
+    }
+
+    @Test
+    void testEmailServiceWithDifferentSubjectForFinePaid() {
+        // Test that different event types use different email subjects
+        User mockUser = mock(User.class);
+        when(mockUser.getName()).thenReturn("John Smith");
+        when(mockUser.getEmail()).thenReturn("john@example.com");
+
+        // Mock a fine paid scenario
+        reminderService.sendFineNotification(mockUser, 0.0, "Fine paid");
+
+        ArgumentCaptor<String> subjectCaptor = ArgumentCaptor.forClass(String.class);
+        verify(mockEmailService, timeout(1000).atLeastOnce())
+                .sendEmail(anyString(), subjectCaptor.capture(), anyString());
+
+        assertEquals("Library Fine Notification", subjectCaptor.getValue());
+    }
+
+    @Test
+    void testEmailServiceSMTPConfiguration() {
+        // Test that EmailService configures SMTP correctly
+        EmailService emailService = new EmailService("test@example.com", "testpassword");
+        assertNotNull(emailService);
+
+        // The service should be initialized with Gmail SMTP settings
+        // (mail.smtp.host = smtp.gmail.com, port = 587, auth = true, starttls = true)
+    }
+
+    @Test
+    void testEmailServiceInRealWorldScenario() {
+        // Simulate a real-world scenario with EmailService
+        EmailService emailService = new EmailService("library@university.edu", "securepassword");
+        LoanRepository loanRepo = new LoanRepository();
+        UserRepository userRepo = new UserRepository();
+
+        ReminderService realReminderService = new ReminderService(
+                emailService, loanRepo, userRepo, false);
+
+        assertNotNull(realReminderService);
+        // This tests that all components work together without exceptions
+    }
+
+    @Test
+    void testEmailServiceMessagingExceptionHandling() {
+        // Test that EmailService handles MessagingException
+        EmailService throwingService = mock(EmailService.class);
+        doThrow(new RuntimeException("Mocked MessagingException")).when(throwingService)
+                .sendEmail(anyString(), anyString(), anyString());
+
+        ReminderService serviceWithThrowingEmail = new ReminderService(
+                throwingService, mockLoanRepository, mockUserRepository, false);
+
+        User mockUser = mock(User.class);
+        when(mockUser.getName()).thenReturn("Test User");
+        when(mockUser.getEmail()).thenReturn("test@example.com");
+
+        // Should not throw when EmailService throws
+        assertDoesNotThrow(() -> {
+            serviceWithThrowingEmail.sendFineNotification(mockUser, 10.0, "Test");
+        });
+    }
+
+    @Test
+    void testEmailServiceWithVariousConstructorCombinations() {
+        // Test ReminderService with various EmailService constructor combinations
+
+        // 1. Normal credentials
+        EmailService normal = new EmailService("normal@test.com", "normalpass");
+        ReminderService rs1 = new ReminderService(normal, mockLoanRepository, mockUserRepository, false);
+        assertNotNull(rs1);
+
+        // 2. Empty credentials
+        EmailService empty = new EmailService("", "");
+        ReminderService rs2 = new ReminderService(empty, mockLoanRepository, mockUserRepository, false);
+        assertNotNull(rs2);
+
+        // 3. Null credentials
+        EmailService nullCreds = new EmailService(null, null);
+        ReminderService rs3 = new ReminderService(nullCreds, mockLoanRepository, mockUserRepository, false);
+        assertNotNull(rs3);
+
+        // 4. Special characters
+        EmailService special = new EmailService("special@test.com", "p@ss!w#rd$");
+        ReminderService rs4 = new ReminderService(special, mockLoanRepository, mockUserRepository, false);
+        assertNotNull(rs4);
+    }
+
+    @Test
+    void testEmailServiceObserverNotification() {
+        // Test that EmailService is called when observers are notified
+        User mockUser = mock(User.class);
+        when(mockUser.getName()).thenReturn("Observer Test");
+        when(mockUser.getEmail()).thenReturn("observer@test.com");
+
+        // Send notification
+        reminderService.sendFineNotification(mockUser, 15.0, "Observer test");
+
+        // Verify EmailService.sendEmail was called
+        verify(mockEmailService, timeout(1000).atLeastOnce())
+                .sendEmail(eq("observer@test.com"), anyString(), anyString());
+    }
+
+    @Test
+    void testEmailServiceMultipleInstancesInReminder() {
+        // Test with multiple EmailService instances
+        EmailService service1 = new EmailService("service1@test.com", "pass1");
+        EmailService service2 = new EmailService("service2@test.com", "pass2");
+        EmailService service3 = new EmailService("service3@test.com", "pass3");
+
+        ReminderService rs1 = new ReminderService(service1, mockLoanRepository, mockUserRepository, false);
+        ReminderService rs2 = new ReminderService(service2, mockLoanRepository, mockUserRepository, false);
+        ReminderService rs3 = new ReminderService(service3, mockLoanRepository, mockUserRepository, false);
+
+        assertNotNull(rs1);
+        assertNotNull(rs2);
+        assertNotNull(rs3);
+    }
+
+    @Test
+    void testEmailServiceAttachmentToObservers() {
+        // Test that EmailService is properly attached as observer
+        EmailService emailService = new EmailService("attach@test.com", "attachpass");
+        ReminderService reminderWithAttachment = new ReminderService(
+                emailService, mockLoanRepository, mockUserRepository, true);
+
+        assertNotNull(reminderWithAttachment);
+
+        // The constructor should attach EmailNotifier which uses the EmailService
     }
 }

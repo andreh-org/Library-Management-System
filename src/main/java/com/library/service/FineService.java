@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Service for handling fine-related operations with Strategy and Observer Patterns
  * @author Library Team
- * @version 2.0
+ * @version 2.2
  */
 public class FineService {
     private FineRepository fineRepository;
@@ -85,8 +85,8 @@ public class FineService {
      */
     public void cleanupDuplicateFines() {
         System.out.println("Cleaning up duplicate fines...");
-        // This would remove duplicate fines for the same loan
-        // For now, just a placeholder
+        // This is a placeholder - implement actual cleanup logic
+        System.out.println("✅ Cleanup complete (placeholder implementation).");
     }
 
     // Primary constructor with all dependencies
@@ -143,8 +143,20 @@ public class FineService {
      * Apply flat fine based on media type using Strategy Pattern
      */
     public Fine applyFine(String userId, String reason, String loanId) {
+        // Validate user exists
+        User user = userRepository.findUserById(userId);
+        if (user == null) {
+            System.out.println("❌ Error: User not found with ID: " + userId);
+            return null;
+        }
+
         if (loanService == null) {
             System.out.println("❌ Error: Loan service not available.");
+            return null;
+        }
+
+        if (loanId == null || loanId.trim().isEmpty()) {
+            System.out.println("❌ Error: Loan ID cannot be empty.");
             return null;
         }
 
@@ -155,11 +167,18 @@ public class FineService {
             return null;
         }
 
+        // Validate the loan belongs to the user
+        if (!loan.getUserId().equals(userId)) {
+            System.out.println("❌ Error: Loan " + loanId + " does not belong to user " + userId);
+            return null;
+        }
+
         // Use Strategy Pattern to calculate fine
-        double fineAmount = fineContext.getFlatFine(loan.getMediaType());
+        String mediaType = loan.getMediaType();
+        double fineAmount = fineContext.getFlatFine(mediaType);
 
         if (fineAmount <= 0) {
-            System.out.println("❌ Error: Invalid fine amount.");
+            System.out.println("❌ Error: Invalid fine amount for media type: " + mediaType);
             return null;
         }
 
@@ -167,37 +186,39 @@ public class FineService {
         Fine existingFine = fineRepository.findFineByLoanId(loanId);
         if (existingFine != null) {
             System.out.println("⚠️ Fine already exists for loan " + loanId + ": " + existingFine.getFineId());
-            // Update the amount if it's different
-            if (existingFine.getAmount() != fineAmount) {
+
+            // Update if amount is different OR if fine is paid (shouldn't happen, but just in case)
+            if (existingFine.isPaid()) {
+                System.out.println("❌ Warning: Fine already paid. Creating new fine instead.");
+                // Continue to create new fine
+            } else if (Math.abs(existingFine.getAmount() - fineAmount) > 0.01) {
                 existingFine.setAmount(fineAmount);
                 System.out.println("⚠️ Updated fine amount to $" + fineAmount);
+                return existingFine;
+            } else {
+                // Same amount, just return existing fine
+                return existingFine;
             }
-            return existingFine;
         }
 
         Fine fine = fineRepository.createFine(userId, fineAmount, loanId);
         if (fine != null) {
             // Update user's borrowing ability
-            User user = userRepository.findUserById(userId);
-            if (user != null) {
-                user.setCanBorrow(false);
-                userRepository.updateUser(user);
-            }
+            user.setCanBorrow(false);
+            userRepository.updateUser(user);
 
-            System.out.println("Fine applied using " + loan.getMediaType() +
+            System.out.println("Fine applied using " + mediaType +
                     " strategy: $" + fineAmount + " for " + reason);
 
             // Notify observers about the fine using Observer Pattern
-            if (user != null) {
-                NotificationEvent event = new NotificationEvent(
-                        user,
-                        "FINE_APPLIED",
-                        String.format("A fine of $%.2f has been applied to your account for: %s",
-                                fineAmount, reason),
-                        fine
-                );
-                notificationSubject.notifyObservers(event);
-            }
+            NotificationEvent event = new NotificationEvent(
+                    user,
+                    "FINE_APPLIED",
+                    String.format("A fine of $%.2f has been applied to your account for: %s",
+                            fineAmount, reason),
+                    fine
+            );
+            notificationSubject.notifyObservers(event);
         }
         return fine;
     }
@@ -206,7 +227,14 @@ public class FineService {
      * Apply a fine with amount (for backward compatibility)
      */
     public Fine applyFine(String userId, double amount, String reason) {
-        // Validate amount
+        // Validate user exists FIRST
+        User user = userRepository.findUserById(userId);
+        if (user == null) {
+            System.out.println("❌ Error: User not found with ID: " + userId);
+            return null;
+        }
+
+        // Then validate amount
         if (amount <= 0) {
             System.out.println("❌ Error: Fine amount must be positive.");
             return null;
@@ -216,25 +244,20 @@ public class FineService {
         Fine fine = fineRepository.createFine(userId, amount);
         if (fine != null) {
             // Update user's borrowing ability
-            User user = userRepository.findUserById(userId);
-            if (user != null) {
-                user.setCanBorrow(false);
-                userRepository.updateUser(user);
-            }
+            user.setCanBorrow(false);
+            userRepository.updateUser(user);
 
             System.out.println("Fine applied: $" + amount + " for " + reason);
 
             // Notify observers
-            if (user != null) {
-                NotificationEvent event = new NotificationEvent(
-                        user,
-                        "FINE_APPLIED",
-                        String.format("A fine of $%.2f has been applied to your account for: %s",
-                                amount, reason),
-                        fine
-                );
-                notificationSubject.notifyObservers(event);
-            }
+            NotificationEvent event = new NotificationEvent(
+                    user,
+                    "FINE_APPLIED",
+                    String.format("A fine of $%.2f has been applied to your account for: %s",
+                            amount, reason),
+                    fine
+            );
+            notificationSubject.notifyObservers(event);
         }
         return fine;
     }
@@ -243,14 +266,13 @@ public class FineService {
      * Pay a fine and notify observers
      */
     public boolean payFine(String fineId, double paymentAmount) {
-        if (paymentAmount <= 0) {
-            System.out.println("❌ Error: Payment amount must be positive.");
+        if (fineId == null || fineId.trim().isEmpty()) {
+            System.out.println("❌ Error: Fine ID cannot be empty.");
             return false;
         }
 
-        // Check if loanService is available
-        if (loanService == null) {
-            System.out.println("❌ Error: Loan service not available.");
+        if (paymentAmount <= 0) {
+            System.out.println("❌ Error: Payment amount must be positive.");
             return false;
         }
 
@@ -270,7 +292,12 @@ public class FineService {
         String loanId = fine.getLoanId();
 
         // NEW LOGIC: Only check if the specific loan associated with this fine is still active
-        if (loanId != null) {
+        if (loanId != null && loanId.trim().length() > 0) {
+            if (loanService == null) {
+                System.out.println("❌ Error: Loan service not available to check loan status.");
+                return false;
+            }
+
             // Get the loan associated with this fine
             com.library.model.Loan loan = loanService.getLoanRepository().findLoanById(loanId);
 
@@ -362,6 +389,11 @@ public class FineService {
      * @param emailService the email service to use
      */
     public void attachEmailObserver(EmailService emailService) {
+        if (emailService == null) {
+            System.out.println("❌ Error: Email service cannot be null.");
+            return;
+        }
+
         notificationSubject.attach(new EmailNotifier(emailService));
         System.out.println("✅ Email notification observer attached.");
     }
@@ -371,6 +403,11 @@ public class FineService {
      * @param observer the observer to attach
      */
     public void attachObserver(Observer observer) {
+        if (observer == null) {
+            System.out.println("❌ Error: Observer cannot be null.");
+            return;
+        }
+
         notificationSubject.attach(observer);
         System.out.println("✅ Custom observer attached: " + observer.getClass().getSimpleName());
     }
@@ -380,6 +417,11 @@ public class FineService {
      * @param observer the observer to detach
      */
     public void detachObserver(Observer observer) {
+        if (observer == null) {
+            System.out.println("❌ Error: Observer cannot be null.");
+            return;
+        }
+
         notificationSubject.detach(observer);
         System.out.println("✅ Observer detached: " + observer.getClass().getSimpleName());
     }
@@ -390,11 +432,25 @@ public class FineService {
      * @param strategyClassName the strategy class name
      */
     public void registerFineStrategy(String mediaType, String strategyClassName) {
+        if (mediaType == null || mediaType.trim().isEmpty()) {
+            System.out.println("❌ Error: Media type cannot be empty.");
+            return;
+        }
+
+        if (strategyClassName == null || strategyClassName.trim().isEmpty()) {
+            System.out.println("❌ Error: Strategy class name cannot be empty.");
+            return;
+        }
+
         try {
             Class<?> strategyClass = Class.forName(strategyClassName);
             FineStrategy strategy = (FineStrategy) strategyClass.getDeclaredConstructor().newInstance();
             fineContext.registerStrategy(mediaType, strategy);
             System.out.println("✅ Registered new fine strategy for " + mediaType + ": " + strategyClassName);
+        } catch (ClassNotFoundException e) {
+            System.err.println("❌ Failed to register strategy: Class not found - " + strategyClassName);
+        } catch (ClassCastException e) {
+            System.err.println("❌ Failed to register strategy: Not a valid FineStrategy - " + strategyClassName);
         } catch (Exception e) {
             System.err.println("❌ Failed to register strategy: " + e.getMessage());
         }
@@ -415,6 +471,8 @@ public class FineService {
                 double fine = fineContext.calculateFine(mediaType, overdueDays);
                 System.out.printf("  • %-10s: $%.2f (for %d days overdue)%n",
                         mediaType, fine, overdueDays);
+            } catch (IllegalArgumentException e) {
+                System.out.printf("  • %-10s: %s%n", mediaType, e.getMessage());
             } catch (Exception e) {
                 System.out.printf("  • %-10s: No strategy found (defaults to BOOK)%n", mediaType);
             }
@@ -425,23 +483,40 @@ public class FineService {
     }
 
     public List<Fine> getUserFines(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            return List.of(); // Return empty list for invalid input
+        }
+
         return fineRepository.findFinesByUser(userId);
     }
 
     public List<Fine> getUserUnpaidFines(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            return List.of(); // Return empty list for invalid input
+        }
+
         return fineRepository.getUnpaidFinesByUser(userId);
     }
 
     public double getTotalUnpaidAmount(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            return 0.0; // Return 0 for invalid input
+        }
+
         return fineRepository.getTotalUnpaidAmount(userId);
     }
 
     public void displayUserFines(String userId) {
+        if (userId == null || userId.trim().isEmpty()) {
+            System.out.println("❌ Error: User ID cannot be empty.");
+            return;
+        }
+
         List<Fine> fines = getUserFines(userId);
         User user = userRepository.findUserById(userId);
 
         if (user == null) {
-            System.out.println("Error: User not found.");
+            System.out.println("❌ Error: User not found.");
             return;
         }
 
@@ -451,32 +526,88 @@ public class FineService {
         System.out.println("=".repeat(120));
 
         if (fines.isEmpty()) {
-            System.out.println("No fines found for this user.");
+            System.out.println("✅ No fines found for this user.");
         } else {
             for (Fine fine : fines) {
                 // Check if the fine is for a returned item
                 String statusNote = "";
                 if (fine.getLoanId() != null) {
-                    com.library.model.Loan loan = loanService.getLoanRepository().findLoanById(fine.getLoanId());
-                    if (loan != null && loan.getReturnDate() == null) {
-                        statusNote = " (Item not returned)";
+                    if (loanService != null) {
+                        com.library.model.Loan loan = loanService.getLoanRepository().findLoanById(fine.getLoanId());
+                        if (loan != null && loan.getReturnDate() == null) {
+                            statusNote = " (Item not returned)";
+                        } else {
+                            statusNote = " (Item returned)";
+                        }
                     } else {
-                        statusNote = " (Item returned)";
+                        statusNote = " (Loan service not available)";
                     }
                 }
                 System.out.println(fine + statusNote);
             }
             double totalUnpaid = getTotalUnpaidAmount(userId);
-            System.out.println("\nTOTAL UNPAID: $" + totalUnpaid);
+            System.out.println("\n💰 TOTAL UNPAID: $" + String.format("%.2f", totalUnpaid));
 
             if (totalUnpaid > 0) {
-                System.out.println("⚠️ Note: Fines for returned items can be paid immediately.");
-                System.out.println("Fines for unreturned items require returning the item first.");
+                System.out.println("\n⚠️ Note:");
+                System.out.println("  • Fines for returned items can be paid immediately.");
+                System.out.println("  • Fines for unreturned items require returning the item first.");
+                System.out.println("  • Total fines must be $0.00 to borrow new items.");
             } else {
-                System.out.println("✅ All fines are paid. User can borrow books.");
+                System.out.println("\n✅ All fines are paid. User can borrow books.");
             }
         }
         System.out.println("=".repeat(120));
+    }
+
+    /**
+     * Get fine breakdown with more detailed information
+     * @param userId the user ID
+     * @return detailed breakdown string
+     */
+    public String getDetailedFineBreakdown(String userId) {
+        List<Fine> fines = getUserUnpaidFines(userId);
+
+        if (fines.isEmpty()) {
+            return "✅ No unpaid fines found.";
+        }
+
+        StringBuilder breakdown = new StringBuilder();
+        breakdown.append("\n📊 DETAILED FINE BREAKDOWN");
+        breakdown.append("\n").append("=".repeat(60));
+
+        double total = 0;
+        int count = 0;
+
+        for (Fine fine : fines) {
+            if (!fine.isPaid()) {
+                count++;
+                total += fine.getRemainingBalance();
+
+                breakdown.append(String.format("\n%d. Fine ID: %s", count, fine.getFineId()));
+                breakdown.append(String.format("\n   Amount: $%.2f | Remaining: $%.2f",
+                        fine.getAmount(), fine.getRemainingBalance()));
+
+                if (fine.getLoanId() != null) {
+                    breakdown.append(String.format("\n   Loan ID: %s", fine.getLoanId()));
+
+                    // Add loan information if available
+                    if (loanService != null) {
+                        com.library.model.Loan loan = loanService.getLoanRepository().findLoanById(fine.getLoanId());
+                        if (loan != null) {
+                            breakdown.append(String.format("\n   Media Type: %s", loan.getMediaType()));
+                        }
+                    }
+                }
+
+                breakdown.append("\n   ").append("-".repeat(40));
+            }
+        }
+
+        breakdown.append(String.format("\n\n💰 TOTAL: $%.2f for %d unpaid fine(s)", total, count));
+        breakdown.append("\n").append("=".repeat(60));
+
+        return breakdown.toString();
     }
 
     // Getters

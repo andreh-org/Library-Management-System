@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * Represents a user in the library system
  * @author Library Team
- * @version 1.0
+ * @version 1.1
  */
 public class User {
     private String userId;
@@ -14,7 +14,8 @@ public class User {
     private String email;
     private List<String> currentLoans;
     private boolean canBorrow;
-    private boolean isActive; // NEW FIELD: User registration status
+    private boolean isActive; // User registration status
+    private double unpaidFines; // NEW: Track unpaid fines
 
     public User(String userId, String name, String email) {
         this.userId = userId;
@@ -23,6 +24,7 @@ public class User {
         this.currentLoans = new ArrayList<>();
         this.canBorrow = true;
         this.isActive = true; // New users are active by default
+        this.unpaidFines = 0.0; // Initialize with no fines
     }
 
     // Getters and setters
@@ -38,11 +40,54 @@ public class User {
     public List<String> getCurrentLoans() { return currentLoans; }
     public void setCurrentLoans(List<String> currentLoans) { this.currentLoans = currentLoans; }
 
-    public boolean canBorrow() { return canBorrow; }
-    public void setCanBorrow(boolean canBorrow) { this.canBorrow = canBorrow; }
+    public boolean canBorrow() {
+        // User can borrow only if active AND no overdue books AND no unpaid fines
+        return isActive && canBorrow && unpaidFines <= 0;
+    }
 
-    public boolean isActive() { return isActive; } // NEW GETTER
-    public void setActive(boolean active) { isActive = active; } // NEW SETTER
+    public void setCanBorrow(boolean canBorrow) {
+        this.canBorrow = canBorrow;
+    }
+
+    public boolean isActive() { return isActive; }
+    public void setActive(boolean active) { isActive = active; }
+
+    public double getUnpaidFines() { return unpaidFines; } // NEW GETTER
+    public void setUnpaidFines(double unpaidFines) { this.unpaidFines = unpaidFines; } // NEW SETTER
+
+    /**
+     * Adds a fine to the user's unpaid balance
+     * @param amount the amount to add (must be positive)
+     */
+    public void addFine(double amount) {
+        if (amount > 0) {
+            this.unpaidFines += amount;
+            // Auto-update borrow permission based on fines
+            if (this.unpaidFines > 0) {
+                this.canBorrow = false;
+            }
+        }
+    }
+
+    /**
+     * Pays a portion or all of the unpaid fines
+     * @param amount the amount to pay (must be positive)
+     * @return the remaining unpaid balance
+     */
+    public double payFine(double amount) {
+        if (amount <= 0) {
+            return this.unpaidFines;
+        }
+
+        if (amount >= this.unpaidFines) {
+            this.unpaidFines = 0;
+            this.canBorrow = true; // Restore borrow permission when fully paid
+            return 0;
+        } else {
+            this.unpaidFines -= amount;
+            return this.unpaidFines;
+        }
+    }
 
     public void addLoan(String loanId) {
         if (!currentLoans.contains(loanId)) {
@@ -58,17 +103,24 @@ public class User {
         return !currentLoans.isEmpty();
     }
 
+    public boolean hasUnpaidFines() {
+        return unpaidFines > 0;
+    }
+
     /**
-     * Checks if user can be unregistered
-     * @return true if user has no active loans and no unpaid fines, false otherwise
+     * Checks if user can be unregistered based on project requirements
+     * @return true if user has no active loans AND no unpaid fines, false otherwise
      */
     public boolean canBeUnregistered() {
-        return !hasCurrentLoans();
+        return !hasCurrentLoans() && !hasUnpaidFines();
     }
 
     @Override
     public String toString() {
-        return String.format("ID: %-10s | Name: %-20s | Email: %-25s | Can Borrow: %s | Active: %s",
-                userId, name, email, canBorrow ? "Yes" : "No", isActive ? "Yes" : "No");
+        return String.format("ID: %-10s | Name: %-20s | Email: %-25s | Active: %s | Can Borrow: %s | Unpaid Fines: %.2f",
+                userId, name, email,
+                isActive ? "Yes" : "No",
+                canBorrow() ? "Yes" : "No", // Use the method, not the field
+                unpaidFines);
     }
 }
