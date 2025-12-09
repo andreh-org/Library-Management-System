@@ -11,11 +11,11 @@ import com.library.model.User; // ADD THIS IMPORT
  */
 public class EmailNotifier implements Observer {
     private EmailService emailService;
-    private boolean useFixedEmail; // NEW: Flag to control email destination
+    private boolean useFixedEmail;
 
     public EmailNotifier(EmailService emailService) {
         this.emailService = emailService;
-        this.useFixedEmail = true; // Default: Use fixed email for testing
+        this.useFixedEmail = true;
     }
 
     // NEW: Constructor with configurable email destination
