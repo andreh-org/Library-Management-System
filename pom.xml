@@ -13,13 +13,10 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <!-- Needed by JaCoCo + Sonar -->
         <argLine></argLine>
+        <!-- needed for sonar -->
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
-        <sonar.coverage.jacoco.xmlReportPaths>
-            ${project.basedir}/target/site/jacoco/jacoco.xml
-        </sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <dependencies>
@@ -78,6 +75,7 @@
                 <configuration>
                     <useModulePath>false</useModulePath>
                 </configuration>
+
             </plugin>
 
             <!-- JaCoCo -->
@@ -89,7 +87,6 @@
                 <executions>
 
                     <execution>
-                        <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
@@ -108,9 +105,11 @@
                             <excludes>
                                 <exclude>**/Main.class</exclude>
                             </excludes>
-                            <outputDirectory>
-                                ${project.reporting.outputDirectory}/jacoco
-                            </outputDirectory>
+                            <outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
+                            <reports>
+                                <report>XML</report>
+                                <report>HTML</report>
+                            </reports>
                         </configuration>
                     </execution>
 
