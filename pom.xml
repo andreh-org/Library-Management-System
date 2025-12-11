@@ -16,7 +16,6 @@
 
         <!-- SonarCloud Configuration -->
         <sonar.organization>andreh-org</sonar.organization>
-        <sonar.projectKey>andreh-org_Library-Management-System</sonar.projectKey>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
 
         <!-- Needed by JaCoCo + Sonar -->
