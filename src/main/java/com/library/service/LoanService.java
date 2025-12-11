@@ -33,72 +33,134 @@ public class LoanService {
      * @return formatted simple mixed media overdue report
      */
     public String getSimpleMixedMediaReport(String userId, LocalDate currentDate) {
-        // First check and apply any overdue fines
         checkAndApplyOverdueFines(userId, currentDate);
 
-        // Get user info
         User user = userRepository.findUserById(userId);
         if (user == null) {
             return "❌ Error: User not found.";
         }
 
-        // Get all fines for the user
         List<Fine> fines = fineService.getUserUnpaidFines(userId);
-
+        
         StringBuilder report = new StringBuilder();
+        buildReportHeader(report, user, userId, currentDate);
+        
+        if (fines.isEmpty()) {
+            report.append("\n✅ No unpaid fines found.");
+        } else {
+            buildFinesSection(report, fines);
+        }
+        
+        report.append("\n").append("-".repeat(60));
+        return report.toString();
+    }
+
+    /**
+     * Builds the report header section
+     */
+    private void buildReportHeader(StringBuilder report, User user, String userId, LocalDate currentDate) {
         report.append("\n=== MIXED MEDIA OVERDUE REPORT ===");
         report.append("\nUser: ").append(user.getName()).append(" (").append(userId).append(")");
         report.append("\nReport Date: ").append(currentDate);
         report.append("\n").append("-".repeat(60));
+    }
 
-        if (fines.isEmpty()) {
-            report.append("\n✅ No unpaid fines found.");
-        } else {
-            // Separate fines by media type
-            double bookFinesTotal = 0;
-            double cdFinesTotal = 0;
-            int bookCount = 0;
-            int cdCount = 0;
+    /**
+     * Builds the fines section with totals by media type
+     */
+    private void buildFinesSection(StringBuilder report, List<Fine> fines) {
+        MediaFinesSummary summary = calculateFinesByMediaType(fines);
+        
+        report.append("\n📊 UNPAID FINES BY MEDIA TYPE:");
+        report.append("\n").append("-".repeat(60));
+        
+        appendFineDetails(report, fines);
+        appendFinesTotals(report, summary);
+    }
 
-            report.append("\n📊 UNPAID FINES BY MEDIA TYPE:");
-            report.append("\n").append("-".repeat(60));
-
-            for (Fine fine : fines) {
-                if (fine.getLoanId() != null) {
-                    Loan loan = loanRepository.findLoanById(fine.getLoanId());
-                    if (loan != null) {
-                        if ("BOOK".equals(loan.getMediaType())) {
-                            bookFinesTotal += fine.getRemainingBalance();
-                            bookCount++;
-                            report.append(String.format("\n📚 Book: %-15s | Loan: %-6s | Fine: $%.2f",
-                                    loan.getMediaId(), loan.getLoanId(), fine.getRemainingBalance()));
-                        } else if ("CD".equals(loan.getMediaType())) {
-                            cdFinesTotal += fine.getRemainingBalance();
-                            cdCount++;
-                            report.append(String.format("\n💿 CD: %-15s | Loan: %-6s | Fine: $%.2f",
-                                    loan.getMediaId(), loan.getLoanId(), fine.getRemainingBalance()));
-                        }
-                    }
+    /**
+     * Calculates totals for fines by media type
+     */
+    private MediaFinesSummary calculateFinesByMediaType(List<Fine> fines) {
+        MediaFinesSummary summary = new MediaFinesSummary();
+        
+        for (Fine fine : fines) {
+            if (fine.getLoanId() != null) {
+                Loan loan = loanRepository.findLoanById(fine.getLoanId());
+                if (loan != null) {
+                    summary.addFine(loan.getMediaType(), fine.getRemainingBalance());
                 }
             }
-
-            report.append("\n").append("-".repeat(60));
-
-            // Show totals by media type
-            if (bookCount > 0) {
-                report.append(String.format("\n📚 BOOKS: %d item(s) | Total: $%.2f", bookCount, bookFinesTotal));
-            }
-            if (cdCount > 0) {
-                report.append(String.format("\n💿 CDs: %d item(s) | Total: $%.2f", cdCount, cdFinesTotal));
-            }
-
-            double totalFines = bookFinesTotal + cdFinesTotal;
-            report.append("\n").append("-".repeat(60));
-            report.append(String.format("\n💰 TOTAL UNPAID FINES: $%.2f", totalFines));
         }
+        
+        return summary;
+    }
 
+    /**
+     * Appends individual fine details to the report
+     */
+    private void appendFineDetails(StringBuilder report, List<Fine> fines) {
+        for (Fine fine : fines) {
+            if (fine.getLoanId() != null) {
+                Loan loan = loanRepository.findLoanById(fine.getLoanId());
+                if (loan != null) {
+                    appendSingleFineDetail(report, loan, fine);
+                }
+            }
+        }
+    }
+
+    /**
+     * Appends a single fine detail line
+     */
+    private void appendSingleFineDetail(StringBuilder report, Loan loan, Fine fine) {
+        if ("BOOK".equals(loan.getMediaType())) {
+            report.append(String.format("\n📚 Book: %-15s | Loan: %-6s | Fine: $%.2f",
+                    loan.getMediaId(), loan.getLoanId(), fine.getRemainingBalance()));
+        } else if ("CD".equals(loan.getMediaType())) {
+            report.append(String.format("\n💿 CD: %-15s | Loan: %-6s | Fine: $%.2f",
+                    loan.getMediaId(), loan.getLoanId(), fine.getRemainingBalance()));
+        }
+    }
+
+    /**
+     * Appends the totals section by media type
+     */
+    private void appendFinesTotals(StringBuilder report, MediaFinesSummary summary) {
         report.append("\n").append("-".repeat(60));
-        return report.toString();
+        
+        if (summary.bookCount > 0) {
+            report.append(String.format("\n📚 BOOKS: %d item(s) | Total: $%.2f", 
+                    summary.bookCount, summary.bookFinesTotal));
+        }
+        if (summary.cdCount > 0) {
+            report.append(String.format("\n💿 CDs: %d item(s) | Total: $%.2f", 
+                    summary.cdCount, summary.cdFinesTotal));
+        }
+        
+        double totalFines = summary.bookFinesTotal + summary.cdFinesTotal;
+        report.append("\n").append("-".repeat(60));
+        report.append(String.format("\n💰 TOTAL UNPAID FINES: $%.2f", totalFines));
+    }
+
+    /**
+     * Helper class to track fines summary by media type
+     */
+    private static class MediaFinesSummary {
+        double bookFinesTotal = 0;
+        double cdFinesTotal = 0;
+        int bookCount = 0;
+        int cdCount = 0;
+        
+        void addFine(String mediaType, double amount) {
+            if ("BOOK".equals(mediaType)) {
+                bookFinesTotal += amount;
+                bookCount++;
+            } else if ("CD".equals(mediaType)) {
+                cdFinesTotal += amount;
+                cdCount++;
+            }
+        }
     }
 
     /**
@@ -112,47 +174,65 @@ public class LoanService {
                 loan.checkOverdue(currentDate);
 
                 if (loan.isOverdue()) {
-                    // Calculate how many days overdue
                     long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(loan.getDueDate(), currentDate);
 
                     if (overdueDays > 0) {
-                        // Calculate fine amount - use flat fines now
-                        double fineAmount = 0.0;
-                        if ("BOOK".equals(loan.getMediaType())) {
-                            fineAmount = 10.00; // $10 flat fine for books
-                        } else if ("CD".equals(loan.getMediaType())) {
-                            fineAmount = 20.00; // $20 flat fine for CDs
-                        }
-
-                        // Check if a fine already exists for this loan
-                        Fine existingFine = fineService.getFineRepository().findFineByLoanId(loan.getLoanId());
-
-                        if (existingFine == null && fineAmount > 0) {
-                            // Create a fine for this overdue loan
-                            String reason = String.format("Overdue %s (Loan: %s) - %d days overdue",
-                                    loan.getMediaType(), loan.getLoanId(), overdueDays);
-
-                            // Use the new applyFine method with loanId
-                            Fine fine = fineService.applyFine(userId, reason, loan.getLoanId());
-                            if (fine != null) {
-                                System.out.println("⚠️ Overdue fine applied: $" +
-                                        String.format("%.2f", fineAmount) +
-                                        " for " + loan.getMediaType() + " " + loan.getMediaId());
-                            }
-                        } else if (existingFine != null) {
-                            // Fine already exists, check if it needs updating
-                            // Since we're using flat fines now, we don't need to update based on days
-                            // Just ensure it's the correct flat amount
-                            double expectedFine = "BOOK".equals(loan.getMediaType()) ? 10.00 : 20.00;
-                            if (existingFine.getAmount() != expectedFine) {
-                                existingFine.setAmount(expectedFine);
-                                System.out.println("⚠️ Updated fine for loan " + loan.getLoanId() +
-                                        " to $" + String.format("%.2f", expectedFine));
-                            }
-                        }
+                        processOverdueLoan(loan, userId, overdueDays);
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Process a single overdue loan
+     */
+    private void processOverdueLoan(Loan loan, String userId, long overdueDays) {
+        double fineAmount = calculateFlatFine(loan.getMediaType());
+        Fine existingFine = fineService.getFineRepository().findFineByLoanId(loan.getLoanId());
+
+        if (existingFine == null && fineAmount > 0) {
+            createNewOverdueFine(loan, userId, overdueDays, fineAmount);
+        } else if (existingFine != null) {
+            updateExistingFine(loan, existingFine, fineAmount);
+        }
+    }
+
+    /**
+     * Calculate flat fine amount based on media type
+     */
+    private double calculateFlatFine(String mediaType) {
+        if ("BOOK".equals(mediaType)) {
+            return 10.00;
+        } else if ("CD".equals(mediaType)) {
+            return 20.00;
+        }
+        return 0.0;
+    }
+
+    /**
+     * Create a new overdue fine
+     */
+    private void createNewOverdueFine(Loan loan, String userId, long overdueDays, double fineAmount) {
+        String reason = String.format("Overdue %s (Loan: %s) - %d days overdue",
+                loan.getMediaType(), loan.getLoanId(), overdueDays);
+
+        Fine fine = fineService.applyFine(userId, reason, loan.getLoanId());
+        if (fine != null) {
+            System.out.println("⚠️ Overdue fine applied: $" +
+                    String.format("%.2f", fineAmount) +
+                    " for " + loan.getMediaType() + " " + loan.getMediaId());
+        }
+    }
+
+    /**
+     * Update existing fine if amount has changed
+     */
+    private void updateExistingFine(Loan loan, Fine existingFine, double expectedFine) {
+        if (existingFine.getAmount() != expectedFine) {
+            existingFine.setAmount(expectedFine);
+            System.out.println("⚠️ Updated fine for loan " + loan.getLoanId() +
+                    " to $" + String.format("%.2f", expectedFine));
         }
     }
 
@@ -180,17 +260,14 @@ public class LoanService {
             return null;
         }
 
-        // Check if user is active
         if (!user.isActive()) {
             System.out.println("❌ Error: User account is not active.");
             System.out.println("Please contact administrator to reactivate your account.");
             return null;
         }
 
-        // FIRST: Check and apply any overdue fines before new borrow
         checkAndApplyOverdueFines(userId, borrowDate);
 
-        // Check if user can borrow (no unpaid fines)
         double unpaidFines = fineService.getTotalUnpaidAmount(userId);
         if (unpaidFines > 0) {
             System.out.println("❌ Error: User cannot borrow. Unpaid fines: $" + unpaidFines);
@@ -198,10 +275,8 @@ public class LoanService {
             return null;
         }
 
-        // Check if user has any overdue items
         List<Loan> userActiveLoans = getUserActiveLoans(userId);
-        boolean hasOverdue = userActiveLoans.stream()
-                .anyMatch(Loan::isOverdue);
+        boolean hasOverdue = userActiveLoans.stream().anyMatch(Loan::isOverdue);
 
         if (hasOverdue) {
             System.out.println("❌ Error: User cannot borrow. There are overdue items that need to be returned first.");
@@ -209,7 +284,6 @@ public class LoanService {
             return null;
         }
 
-        // Get the media item
         Media media = mediaRepository.findMediaByIdAndType(mediaId, mediaType);
         if (media == null) {
             System.out.println("Error: " + mediaType + " not found with ID: " + mediaId);
@@ -221,7 +295,6 @@ public class LoanService {
             return null;
         }
 
-        // Create loan
         Loan loan;
         if ("BOOK".equals(mediaType)) {
             loan = loanRepository.createBookLoan(userId, mediaId, borrowDate);
@@ -266,15 +339,12 @@ public class LoanService {
 
             System.out.println("✅ Media returned successfully!");
 
-            // Check if loan was overdue and apply fine
             if (returnDate.isAfter(loan.getDueDate())) {
                 long overdueDays = java.time.temporal.ChronoUnit.DAYS.between(loan.getDueDate(), returnDate);
                 System.out.println("⚠️ This item was " + overdueDays + " days overdue.");
 
-                // Apply flat fine based on media type
                 String fineReason = "Overdue " + loan.getMediaType() + " (Loan: " + loanId + ") - " + overdueDays + " days overdue";
 
-                // Use the new applyFine method with loanId
                 Fine fine = fineService.applyFine(loan.getUserId(), fineReason, loanId);
                 if (fine != null) {
                     double fineAmount = "BOOK".equals(loan.getMediaType()) ? 10.00 : 20.00;
@@ -290,9 +360,7 @@ public class LoanService {
      * Gets overdue summary for a user
      */
     public LoanRepository.OverdueSummary getOverdueSummary(String userId, LocalDate currentDate) {
-        // First check and apply any overdue fines
         checkAndApplyOverdueFines(userId, currentDate);
-
         return loanRepository.getOverdueSummaryForUser(userId, currentDate);
     }
 
