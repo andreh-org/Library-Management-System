@@ -21,70 +21,46 @@ public class LoanRepository {
         this.loans = new ArrayList<>();
         this.mediaRepository = mediaRepository;
         this.loanCounter = 1;
-        initializeSampleLoans(); // Add sample loans for testing
+        initializeSampleLoans();
     }
 
-    // Default constructor for backward compatibility
     public LoanRepository() {
         this(new MediaRepository());
     }
 
-    /**
-     * Adds sample loans for testing - including overdue ones
-     */
     private void initializeSampleLoans() {
-        // Create some sample overdue loans for our test users
-        LocalDate pastDate = LocalDate.now().minusDays(35); // 7 days overdue
-        LocalDate pastDate1 = LocalDate.now().minusDays(35); // 7 days overdue
+        LocalDate pastDate = LocalDate.now().minusDays(35);
+        LocalDate pastDate1 = LocalDate.now().minusDays(35);
+        LocalDate pastDate2 = LocalDate.now().minusDays(40);
+        LocalDate pastDate3 = LocalDate.now().minusDays(10);
 
-        LocalDate pastDate2 = LocalDate.now().minusDays(40); // 12 days overdue
-        LocalDate pastDate3 = LocalDate.now().minusDays(10); // CD overdue (3 days overdue)
-
-        // U002 - Emma Johnson has an overdue book
         Loan overdueBookLoan = new Loan("L0001", "U002", "978-0743273565", "BOOK",
                 pastDate, pastDate.plusDays(28));
         overdueBookLoan.setOverdue(true);
         loans.add(overdueBookLoan);
-
         mediaRepository.updateMediaAvailability("978-0743273565", false);
 
         Loan overdueBookLoan1 = new Loan("L0004", "U002", "978-0141439518", "BOOK",
                 pastDate1, pastDate1.plusDays(28));
         overdueBookLoan1.setOverdue(true);
         loans.add(overdueBookLoan1);
-
-        // Mark the book as unavailable
         mediaRepository.updateMediaAvailability("978-0141439518", false);
 
-        // U004 - Sarah Davis has an overdue book
         Loan overdueBookLoan2 = new Loan("L0002", "U004", "978-0061120084", "BOOK",
                 pastDate2, pastDate2.plusDays(28));
         overdueBookLoan2.setOverdue(true);
         loans.add(overdueBookLoan2);
-
-        // Mark the book as unavailable
         mediaRepository.updateMediaAvailability("978-0061120084", false);
 
-        // U001 - John Smith has an overdue CD (3 days overdue)
         Loan overdueCDLoan = new Loan("L0003", "U001", "CD-001", "CD",
                 pastDate3, pastDate3.plusDays(7));
         overdueCDLoan.setOverdue(true);
         loans.add(overdueCDLoan);
-
-        // Mark the CD as unavailable
         mediaRepository.updateMediaAvailability("CD-001", false);
 
-        loanCounter = 5; // Set counter to continue from L0004
+        loanCounter = 5;
     }
 
-    /**
-     * Creates a new loan for media
-     * @param userId the user ID
-     * @param mediaId the media identifier
-     * @param mediaType the media type
-     * @param borrowDate the borrow date
-     * @return the created loan
-     */
     public Loan createLoan(String userId, String mediaId, String mediaType,
                            LocalDate borrowDate) {
         int loanPeriod = getLoanPeriodForMediaType(mediaType);
@@ -93,18 +69,11 @@ public class LoanRepository {
 
         Loan newLoan = new Loan(loanId, userId, mediaId, mediaType, borrowDate, dueDate);
         loans.add(newLoan);
-
-        // Mark the media as unavailable when loan is created
         mediaRepository.updateMediaAvailability(mediaId, false);
 
         return newLoan;
     }
 
-    /**
-     * Gets loan period for media type
-     * @param mediaType the media type
-     * @return loan period in days
-     */
     private int getLoanPeriodForMediaType(String mediaType) {
         switch (mediaType.toUpperCase()) {
             case "BOOK": return 28;
@@ -113,16 +82,10 @@ public class LoanRepository {
         }
     }
 
-    /**
-     * Creates a loan for a book (convenience method)
-     */
     public Loan createBookLoan(String userId, String bookIsbn, LocalDate borrowDate) {
         return createLoan(userId, bookIsbn, "BOOK", borrowDate);
     }
 
-    /**
-     * Creates a loan for a CD (convenience method)
-     */
     public Loan createCDLoan(String userId, String cdCatalogNumber, LocalDate borrowDate) {
         return createLoan(userId, cdCatalogNumber, "CD", borrowDate);
     }
@@ -154,12 +117,6 @@ public class LoanRepository {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Gets overdue loans for a specific user
-     * @param userId the user ID
-     * @param currentDate the current date
-     * @return list of overdue loans
-     */
     public List<Loan> getOverdueLoansForUser(String userId, LocalDate currentDate) {
         return loans.stream()
                 .filter(loan -> loan.getUserId().equals(userId))
@@ -175,10 +132,7 @@ public class LoanRepository {
         if (loan != null && loan.getReturnDate() == null) {
             loan.setReturnDate(returnDate);
             loan.setOverdue(false);
-
-            // Mark the media as available when returned
             mediaRepository.updateMediaAvailability(loan.getMediaId(), true);
-
             return true;
         }
         return false;
@@ -199,12 +153,6 @@ public class LoanRepository {
         return mediaRepository;
     }
 
-    /**
-     * Calculates total fines for a user across all media types
-     * @param userId the user ID
-     * @param currentDate the current date
-     * @return total fine amount
-     */
     public double calculateTotalFinesForUser(String userId, LocalDate currentDate) {
         return loans.stream()
                 .filter(loan -> loan.getUserId().equals(userId))
@@ -213,12 +161,6 @@ public class LoanRepository {
                 .sum();
     }
 
-    /**
-     * Gets integrated overdue report for a user with mixed media types
-     * @param userId the user ID
-     * @param currentDate the current date
-     * @return IntegratedOverdueReport object
-     */
     public IntegratedOverdueReport getIntegratedOverdueReport(String userId, LocalDate currentDate) {
         return new IntegratedOverdueReport(userId, currentDate);
     }
@@ -247,54 +189,43 @@ public class LoanRepository {
         }
 
         private void calculateReport() {
-            // Get all active loans
             allActiveLoans = loans.stream()
                     .filter(loan -> loan.getUserId().equals(userId))
                     .filter(loan -> loan.getReturnDate() == null)
                     .collect(Collectors.toList());
 
-            // Get returned but overdue loans (for fines that still need to be paid)
             returnedOverdueLoans = loans.stream()
                     .filter(loan -> loan.getUserId().equals(userId))
                     .filter(loan -> loan.getReturnDate() != null)
                     .filter(loan -> {
-                        // Check if it was overdue when returned
                         LocalDate dueDate = loan.getDueDate();
                         LocalDate returnDate = loan.getReturnDate();
                         return returnDate.isAfter(dueDate);
                     })
                     .collect(Collectors.toList());
 
-            // Check and mark overdue status for active loans
             for (Loan loan : allActiveLoans) {
                 loan.checkOverdue(reportDate);
                 if (loan.isOverdue()) {
                     overdueActiveLoans.add(loan);
-                    // Apply flat fine based on media type
                     double fine = calculateFlatFine(loan);
                     activeFinesTotal += fine;
                 }
             }
 
-            // Calculate fines for returned overdue loans
             for (Loan loan : returnedOverdueLoans) {
                 double fine = calculateFlatFine(loan);
                 returnedFinesTotal += fine;
             }
         }
 
-        /**
-         * Calculate flat fine based on media type
-         * @param loan the loan
-         * @return flat fine amount
-         */
         private double calculateFlatFine(Loan loan) {
             Media media = mediaRepository.findMediaById(loan.getMediaId());
             if (media != null) {
                 if ("BOOK".equals(media.getMediaType())) {
-                    return 10.00; // $10 for books
+                    return 10.00;
                 } else if ("CD".equals(media.getMediaType())) {
-                    return 20.00; // $20 for CDs
+                    return 20.00;
                 }
             }
             return 0.0;
@@ -309,9 +240,6 @@ public class LoanRepository {
         public double getReturnedFinesTotal() { return returnedFinesTotal; }
         public double getTotalFine() { return activeFinesTotal + returnedFinesTotal; }
 
-        /**
-         * Get the fine for a specific loan
-         */
         public double getFineForLoan(Loan loan) {
             Media media = mediaRepository.findMediaById(loan.getMediaId());
             if (media != null) {
@@ -328,72 +256,92 @@ public class LoanRepository {
         public String toString() {
             StringBuilder sb = new StringBuilder();
 
-            // Header with emojis
+            appendHeader(sb);
+            appendActiveLoansSection(sb);
+            appendOverdueSummarySection(sb);
+
+            return sb.toString();
+        }
+
+        private void appendHeader(StringBuilder sb) {
             sb.append("\n").append("🎯".repeat(50));
             sb.append("\n📊 MIXED MEDIA OVERDUE REPORT");
             sb.append("\n").append("🎯".repeat(50));
+        }
 
-            // Active loans section - integrated
+        private void appendActiveLoansSection(StringBuilder sb) {
             sb.append("\n📖 ACTIVE LOANS: ").append(allActiveLoans.size()).append(" items");
 
             if (!allActiveLoans.isEmpty()) {
                 sb.append("\n").append("-".repeat(100));
                 for (Loan loan : allActiveLoans) {
-                    String status = loan.isOverdue() ? "⏰ OVERDUE" : "✅ On Time";
-                    String mediaType = "BOOK".equals(loan.getMediaType()) ? "📚 BOOK" : "💿 CD";
-                    sb.append(String.format("\n   • %s: %-15s | Due: %s | Status: %s",
-                            mediaType, loan.getMediaId(), loan.getDueDate(), status));
+                    appendActiveLoanDetails(sb, loan);
                 }
             }
             sb.append("\n").append("-".repeat(100));
+        }
 
-            // Overdue summary section
+        private void appendActiveLoanDetails(StringBuilder sb, Loan loan) {
+            String status = loan.isOverdue() ? "⏰ OVERDUE" : "✅ On Time";
+            String mediaType = "BOOK".equals(loan.getMediaType()) ? "📚 BOOK" : "💿 CD";
+            sb.append(String.format("\n   • %s: %-15s | Due: %s | Status: %s",
+                    mediaType, loan.getMediaId(), loan.getDueDate(), status));
+        }
+
+        private void appendOverdueSummarySection(StringBuilder sb) {
             sb.append("\n\n").append("=".repeat(100));
             sb.append("\n📋 OVERDUE SUMMARY FOR USER: ").append(userId);
             sb.append("\n").append("=".repeat(100));
 
-            // Combine active overdue loans and returned overdue loans
-            List<Loan> allOverdueLoans = new ArrayList<>();
-            allOverdueLoans.addAll(overdueActiveLoans);
-            allOverdueLoans.addAll(returnedOverdueLoans);
+            List<Loan> allOverdueLoans = combineOverdueLoans();
 
             if (allOverdueLoans.isEmpty()) {
                 sb.append("\n✅ No overdue items or unpaid fines.");
             } else {
-                sb.append("\n\n📦 OVERDUE ITEMS & UNPAID FINES:");
-                sb.append("\n").append("-".repeat(100));
-
-                for (Loan loan : allOverdueLoans) {
-                    String mediaIcon = "BOOK".equals(loan.getMediaType()) ? "📚" : "💿";
-                    double fine = getFineForLoan(loan);
-                    String status = loan.getReturnDate() != null ? " (Returned)" : " (Active)";
-                    sb.append(String.format("\n%s Type: %-4s | Media ID: %-15s | Loan: %-8s | Fine: $%.2f%s",
-                            mediaIcon, loan.getMediaType(), loan.getMediaId(), loan.getLoanId(), fine, status));
-                }
-                sb.append("\n").append("-".repeat(100));
-                sb.append(String.format("\n💰 TOTAL FINE: $%.2f", getTotalFine()));
-
-                // Show breakdown
-                if (activeFinesTotal > 0) {
-                    sb.append(String.format("\n   • Active overdue items: $%.2f", activeFinesTotal));
-                }
-                if (returnedFinesTotal > 0) {
-                    sb.append(String.format("\n   • Unpaid fines for returned items: $%.2f", returnedFinesTotal));
-                }
+                appendOverdueItems(sb, allOverdueLoans);
+                appendFineSummary(sb);
             }
 
             sb.append("\n").append("=".repeat(100));
+        }
 
-            return sb.toString();
+        private List<Loan> combineOverdueLoans() {
+            List<Loan> allOverdueLoans = new ArrayList<>();
+            allOverdueLoans.addAll(overdueActiveLoans);
+            allOverdueLoans.addAll(returnedOverdueLoans);
+            return allOverdueLoans;
+        }
+
+        private void appendOverdueItems(StringBuilder sb, List<Loan> allOverdueLoans) {
+            sb.append("\n\n📦 OVERDUE ITEMS & UNPAID FINES:");
+            sb.append("\n").append("-".repeat(100));
+
+            for (Loan loan : allOverdueLoans) {
+                appendOverdueLoanDetails(sb, loan);
+            }
+            sb.append("\n").append("-".repeat(100));
+        }
+
+        private void appendOverdueLoanDetails(StringBuilder sb, Loan loan) {
+            String mediaIcon = "BOOK".equals(loan.getMediaType()) ? "📚" : "💿";
+            double fine = getFineForLoan(loan);
+            String status = loan.getReturnDate() != null ? " (Returned)" : " (Active)";
+            sb.append(String.format("\n%s Type: %-4s | Media ID: %-15s | Loan: %-8s | Fine: $%.2f%s",
+                    mediaIcon, loan.getMediaType(), loan.getMediaId(), loan.getLoanId(), fine, status));
+        }
+
+        private void appendFineSummary(StringBuilder sb) {
+            sb.append(String.format("\n💰 TOTAL FINE: $%.2f", getTotalFine()));
+
+            if (activeFinesTotal > 0) {
+                sb.append(String.format("\n   • Active overdue items: $%.2f", activeFinesTotal));
+            }
+            if (returnedFinesTotal > 0) {
+                sb.append(String.format("\n   • Unpaid fines for returned items: $%.2f", returnedFinesTotal));
+            }
         }
     }
 
-    /**
-     * Gets overdue summary for a user with mixed media types
-     * @param userId the user ID
-     * @param currentDate the current date
-     * @return OverdueSummary object with mixed media details
-     */
     public OverdueSummary getOverdueSummaryForUser(String userId, LocalDate currentDate) {
         OverdueSummary summary = new OverdueSummary(userId);
 
@@ -404,16 +352,13 @@ public class LoanRepository {
                     return loan.isOverdue() && loan.getReturnDate() == null;
                 })
                 .forEach(loan -> {
-                    double fine = loan.calculateFlatFine();  // Changed to calculateFlatFine()
+                    double fine = loan.calculateFlatFine();
                     summary.addOverdueItem(loan.getMediaType(), loan.getMediaId(), fine, loan.getLoanId());
                 });
 
         return summary;
     }
 
-    /**
-     * Inner class to represent overdue summary with mixed media
-     */
     public static class OverdueSummary {
         private String userId;
         private List<OverdueItem> overdueItems;
@@ -434,14 +379,9 @@ public class LoanRepository {
         public List<OverdueItem> getOverdueItems() { return overdueItems; }
         public double getTotalFine() { return totalFine; }
 
-        /**
-         * Gets overdue items grouped by media type
-         * @return formatted string with media type breakdown
-         */
         public String getMediaTypeBreakdown() {
             StringBuilder sb = new StringBuilder();
 
-            // Group items by media type
             var books = overdueItems.stream()
                     .filter(item -> "BOOK".equals(item.getMediaType()))
                     .collect(Collectors.toList());
@@ -450,7 +390,6 @@ public class LoanRepository {
                     .filter(item -> "CD".equals(item.getMediaType()))
                     .collect(Collectors.toList());
 
-            // Calculate totals by type
             double bookTotal = books.stream().mapToDouble(OverdueItem::getFine).sum();
             double cdTotal = cds.stream().mapToDouble(OverdueItem::getFine).sum();
 
@@ -489,7 +428,6 @@ public class LoanRepository {
             if (overdueItems.isEmpty()) {
                 sb.append("\n✅ No overdue items.");
             } else {
-                // Show each overdue item
                 sb.append("\n\n📦 OVERDUE ITEMS:");
                 sb.append("\n").append("-".repeat(100));
 
@@ -497,7 +435,6 @@ public class LoanRepository {
                     sb.append("\n").append(item);
                 }
 
-                // Show media type breakdown
                 sb.append("\n").append("-".repeat(100));
                 sb.append(getMediaTypeBreakdown());
             }
@@ -505,9 +442,6 @@ public class LoanRepository {
             return sb.toString();
         }
 
-        /**
-         * Inner class for overdue item with media type support
-         */
         public static class OverdueItem {
             private String mediaType;
             private String mediaId;
