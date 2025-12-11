@@ -5,7 +5,6 @@ import com.library.model.CD;
 import com.library.model.Media;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Repository for managing all media items (books, CDs, etc.)
@@ -62,7 +61,7 @@ public class MediaRepository {
                 .filter(media -> media.getTitle().toLowerCase().contains(query.toLowerCase()) ||
                         media.getAuthor().toLowerCase().contains(query.toLowerCase()) ||
                         media.getIdentifier().toLowerCase().contains(query.toLowerCase()))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -122,7 +121,7 @@ public class MediaRepository {
         return mediaItems.stream()
                 .filter(media -> media instanceof Book)
                 .map(media -> (Book) media)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
@@ -133,7 +132,7 @@ public class MediaRepository {
         return mediaItems.stream()
                 .filter(media -> media instanceof CD)
                 .map(media -> (CD) media)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
