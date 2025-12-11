@@ -93,19 +93,19 @@ public class LoanRepository {
     public List<Loan> findLoansByUser(String userId) {
         return loans.stream()
                 .filter(loan -> loan.getUserId().equals(userId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<Loan> findLoansByMedia(String mediaId) {
         return loans.stream()
                 .filter(loan -> loan.getMediaId().equals(mediaId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<Loan> getActiveLoans() {
         return loans.stream()
                 .filter(loan -> loan.getReturnDate() == null)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<Loan> getOverdueLoans(LocalDate currentDate) {
@@ -114,7 +114,7 @@ public class LoanRepository {
                     loan.checkOverdue(currentDate);
                     return loan.isOverdue() && loan.getReturnDate() == null;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<Loan> getOverdueLoansForUser(String userId, LocalDate currentDate) {
@@ -124,7 +124,7 @@ public class LoanRepository {
                     loan.checkOverdue(currentDate);
                     return loan.isOverdue() && loan.getReturnDate() == null;
                 })
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public boolean returnMedia(String loanId, LocalDate returnDate) {
@@ -189,12 +189,12 @@ public class LoanRepository {
         }
 
         private void calculateReport() {
-            allActiveLoans = loans.stream()
+            allActiveLoans = new ArrayList<>(loans.stream()
                     .filter(loan -> loan.getUserId().equals(userId))
                     .filter(loan -> loan.getReturnDate() == null)
-                    .collect(Collectors.toList());
+                    .toList());
 
-            returnedOverdueLoans = loans.stream()
+            returnedOverdueLoans = new ArrayList<>(loans.stream()
                     .filter(loan -> loan.getUserId().equals(userId))
                     .filter(loan -> loan.getReturnDate() != null)
                     .filter(loan -> {
@@ -202,7 +202,7 @@ public class LoanRepository {
                         LocalDate returnDate = loan.getReturnDate();
                         return returnDate.isAfter(dueDate);
                     })
-                    .collect(Collectors.toList());
+                    .toList());
 
             for (Loan loan : allActiveLoans) {
                 loan.checkOverdue(reportDate);
@@ -384,11 +384,11 @@ public class LoanRepository {
 
             var books = overdueItems.stream()
                     .filter(item -> "BOOK".equals(item.getMediaType()))
-                    .collect(Collectors.toList());
+                    .toList();
 
             var cds = overdueItems.stream()
                     .filter(item -> "CD".equals(item.getMediaType()))
-                    .collect(Collectors.toList());
+                    .toList();
 
             double bookTotal = books.stream().mapToDouble(OverdueItem::getFine).sum();
             double cdTotal = cds.stream().mapToDouble(OverdueItem::getFine).sum();
