@@ -3,7 +3,6 @@ package com.library.repository;
 import com.library.model.Fine;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Repository for managing fine data
@@ -45,13 +44,13 @@ public class FineRepository {
     public List<Fine> findFinesByUser(String userId) {
         return fines.stream()
                 .filter(fine -> fine.getUserId().equals(userId))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public List<Fine> getUnpaidFinesByUser(String userId) {
         return fines.stream()
                 .filter(fine -> fine.getUserId().equals(userId) && !fine.isPaid())
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public double getTotalUnpaidAmount(String userId) {
